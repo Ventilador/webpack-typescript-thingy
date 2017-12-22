@@ -64,6 +64,9 @@ module.exports = function createDocumentRegistry(useCaseSensitiveFileNames, curr
                 languageServiceRefCount: 1,
                 owners: []
             };
+            if (!entry.sourceFile.text) {
+                entry = entry;
+            }
             bucket.set(path, entry);
         }
         else {
@@ -72,6 +75,9 @@ module.exports = function createDocumentRegistry(useCaseSensitiveFileNames, curr
             // return it as is.
             if (entry.sourceFile.version !== version) {
                 entry.sourceFile = ts.updateLanguageServiceSourceFile(entry.sourceFile, scriptSnapshot, version, scriptSnapshot.getChangeRange(entry.sourceFile.scriptSnapshot));
+                if (!entry.sourceFile.text) {
+                    entry = entry;
+                }
             }
             // If we're acquiring, then this is the first time this LS is asking for this document.
             // Increase our ref count so we know there's another LS using the document.  If we're
@@ -83,6 +89,7 @@ module.exports = function createDocumentRegistry(useCaseSensitiveFileNames, curr
             }
         }
 
+        
         return entry.sourceFile;
     }
     function releaseDocument(fileName, compilationSettings) {

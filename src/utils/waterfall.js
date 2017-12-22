@@ -85,25 +85,7 @@ function apply(cbs, args) {
     cbs: cbs,
     currentIndex: -1,
     destroyed: false,
-    onDone: function (context) {
-      if (!context.__onDone) {
-        throw 'No callback provided';
-      }
-      onNextTick(context.__onDone, null, [context.error, context.result]);
-      context.async =
-        context.then =
-        context.catch =
-        context.__async =
-        context.result =
-        context.error =
-        context.cbs =
-        context.currentIndex =
-        context.onDone =
-        context.max =
-        context.callback =
-        context.version = null;
-      context.destroyed = true;
-    },
+    onDone: itemDone,
     max: cbs.length,
     callback: applyCurrent,
     version: 0
@@ -151,4 +133,24 @@ function next() {
     throw 'You HAVE to do something';
   }
 
+}
+
+function itemDone() {
+  if (!this.__onDone) {
+    throw 'No callback provided';
+  }
+  onNextTick(this.__onDone, null, [this.error, this.result]);
+  this.async =
+    this.then =
+    this.catch =
+    this.__async =
+    this.result =
+    this.error =
+    this.cbs =
+    this.currentIndex =
+    this.onDone =
+    this.max =
+    this.callback =
+    this.version = null;
+  this.destroyed = true;
 }

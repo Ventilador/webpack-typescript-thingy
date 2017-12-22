@@ -1,13 +1,14 @@
 const ts = require('typescript');
+let instance;
 module.exports = function Host(options, sys) {
-    let projectVersion = 0;
-    const files = Object.create(null);
-    console.log(options);
+    if (instance) {
+        return instance;
+    }
     const context = options.context;
     const compilerOptions = options.compilerOptions;
     const filesRegex = options.filesRegex;
-    return {
-        getProjectVersion: getProjectVersion,
+    const files = options.files;
+    return (instance = {
         getScriptFileNames: getScriptFileNames,
         getScriptVersion: getScriptVersion,
         getScriptSnapshot: getScriptSnapshot,
@@ -25,9 +26,10 @@ module.exports = function Host(options, sys) {
         getDirectories: sys.getDirectories,
         directoryExists: sys.directoryExists,
         writeFile: writeFile
-    };
-    function getProjectVersion() { return projectVersion.toString(); }
-    function getScriptFileNames() { return Object.keys(files).filter(RegExp.prototype.test, filesRegex); }
+    });
+    function getScriptFileNames() {
+        return files.filter(RegExp.prototype.test, filesRegex);
+    }
     function getScriptVersion(fileName) {
         return ensure(fileName).version;
     }
@@ -65,7 +67,6 @@ module.exports = function Host(options, sys) {
     function writeFile(path, content) {
         sys.writeFile(path, content);
         if (files[path]) {
-            projectVersion++;
             files[path].text = content;
             files[path].snapshot.dispose();
             files[path].snapshot = ts.ScriptSnapshot.fromString(content);
@@ -77,7 +78,7 @@ module.exports = function Host(options, sys) {
             const text = sys.readFile(fileName) || '';
             files[fileName] = {
                 text,
-                version: 0,
+                version: 1,
                 snapshot: ts.ScriptSnapshot.fromString(text)
             };
         }

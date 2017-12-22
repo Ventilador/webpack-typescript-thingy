@@ -5,6 +5,7 @@ const fileSystem = require('./TsHooker/fs')(function (code) {
     console.log('exiting');
     process.exit(code);
 });
+const hostMaker = require('./TsHooker/HostService');
 const isDefinitionFile = /\.d\.tsx?$/;
 module.exports = function makePlugin(options) {
     options = options || {};
@@ -38,7 +39,14 @@ module.exports = function makePlugin(options) {
                 } else {
                     fileSystem.placeholder(fileName);
                 }
+                
             });
+            hostMaker({
+                context: process.cwd(),
+                compilerOptions: compilerConfig,
+                filesRegex: /\.tsx?$/,
+                files: compilerConfig.fileNames
+            }, fileSystem);
         });
         function makeReadFileCb(fileName) {
             return function loadDefinitionFile(err, content) {

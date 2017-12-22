@@ -95,21 +95,7 @@ module.exports = function makeMemFs(cb) {
     }
     onExit = cb ? [cb] : [];
     const root = makeRoot();
-    const waiting = [];
-    const _later = later(function () {
-        waiting.forEach(function (item) {
-            item[0].apply(null, item[1]);
-        });
-    });
-    const globalQueue = {
-        push: function (waiters) {
-            waiters.forEach(_later);
-        },
-        subscribe: function (cb, args) {
-            waiting.push([cb, args]);
-        }
-    };
-    var nodeSystem = {
+    instance = {
         args: process.argv.slice(2),
         newLine: _os.EOL,
         useCaseSensitiveFileNames: useCaseSensitiveFileNames,
@@ -163,7 +149,7 @@ module.exports = function makeMemFs(cb) {
         ensure: ensure,
         placeholder: root.placeholder
     };
-    return nodeSystem;
+    return instance;
     function readFile(fileName) {
         return root.getProperty(fileName, 'content');
     }
@@ -174,10 +160,7 @@ module.exports = function makeMemFs(cb) {
     }
 
     function fileExists(path) {
-        if (/([^(\.d)]|([^\.].))\.ts$/.test(path)) {
-            return true;
-        }
-        return root.getProperty(path, 'isFile') === true;
+        return path.endsWith('.html') || path.endsWith('.less') || root.getProperty(path, 'isFile') === true;
     }
     function directoryExists(path) {
         return root.getProperty(path, 'isFile') === false;
@@ -229,25 +212,29 @@ module.exports = function makeMemFs(cb) {
 
 
 
-    function ensure(files, options, cb, args_) {
-        globalQueue.subscribe(cb, args_ || []);
+    function ensure(files, cb, args) {
         if (!files) {
             return;
         }
         let length = files.length;
-        const waiters = [];
+
+        let queue;
         while (length--) {
             const cur = files[length];
             if (cur) {
                 const shouldWait = root.wait(cur);
                 if (shouldWait) {
-                    waiters.push(shouldWait);
+                    if (!queue) {
+                        queue = later(cb, args);
+                    }
+                    shouldWait.then(queue());
                 }
             }
         }
-
-        if (waiters.length) {
-            globalQueue.push(waiters);
+        if (queue) {
+            queue.release();
+        } else {
+            onNextTick(cb, null, args);
         }
     }
 
@@ -255,14 +242,25 @@ module.exports = function makeMemFs(cb) {
 
     function later(cb, args) {
         let ticks = 0;
+        let sync = true;
+        add.release = release;
         return add;
-        function add(promise) {
+        function release() {
+            sync = false;
+        }
+        function add() {
             ticks++;
-            onNextTick(promise.then, promise, done);
-            return ticks;
+            return done;
         }
         function done() {
+            if (sync) {
+                onNextTick(done);
+                return;
+            }
             ticks--;
+            if (ticks < 0) {
+                ticks = ticks;
+            }
             if (!ticks) {
                 onNextTick(cb, null, args);
             }

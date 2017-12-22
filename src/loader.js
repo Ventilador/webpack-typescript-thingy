@@ -30,7 +30,12 @@ module.exports = function (source) {
 function makeResolver(loadModule, resolver) {
   return resolve;
   function resolve(file, context, cb) {
+    let count = 0;
     resolver(dirname(context), file, function load(err, path) {
+      if (count) {
+        console.log(count);
+      }
+      count++;
       loadModule(path, noop);
       cb(null, path);
     });

@@ -68,7 +68,7 @@ module.exports = function makeMemoryRoot() {
   }
 
   function getNode(path_, create) {
-    let p = normalize(path_);
+    let p = normalize(path_).toLowerCase();
     let node = root, collected = [], name;
     for (let i = 0, cur = p[i], l = p.length; i < l; cur = p[++i]) {
       if (cur === sep) {
