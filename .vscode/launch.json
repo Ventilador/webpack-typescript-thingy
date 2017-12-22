@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible Node.js debug attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Program",
+            "program": "${workspaceRoot}/index.js",
+            "localRoot": "${workspaceRoot}",
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug Proteus",
+            "program": "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI/node_modules/webpack-dev-server/bin/webpack-dev-server.js",
+            "localRoot": "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI",
+            "cwd": "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI",
+            "runtimeArgs": [
+                "--max-old-space-size=4096"
+            ],
+            "args": [
+                "--config",
+                "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI/compilation/webpack.start.js"
+            ]
+        }
+    ]
+}
