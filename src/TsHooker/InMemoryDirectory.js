@@ -1,8 +1,8 @@
 const { normalize, sep } = require('path');
+const ts = require('typescript');
+const makeSnapshot = ts.ScriptSnapshot.fromString;
 const { makeQueue, onNextTick } = require('./../utils');
 const driverSep = ':';
-let emittingCreate = false;
-const emitCreateQueue = [];
 module.exports = function makeMemoryRoot() {
   const root = new Node({ name: 'root' }, null);
   return Object.assign(root, {
@@ -51,7 +51,6 @@ module.exports = function makeMemoryRoot() {
         done();
         return true;
       });
-      emitCreateQueue.push(node);
       return (node.promise = {
         then: function (cb, args) {
           array.push({
@@ -68,7 +67,7 @@ module.exports = function makeMemoryRoot() {
   }
 
   function getNode(path_, create) {
-    let p = normalize(path_).toLowerCase();
+    let p = normalize(path_);
     let node = root, collected = [], name;
     for (let i = 0, cur = p[i], l = p.length; i < l; cur = p[++i]) {
       if (cur === sep) {
@@ -76,7 +75,7 @@ module.exports = function makeMemoryRoot() {
           throw 'Invalid path "' + p + '"';
         }
         name = collected.join('');
-        let temp = node.children[name];
+        let temp = node.children[name.toLowerCase()];
         if (temp) {
           node = temp;
         } else {
@@ -95,7 +94,7 @@ module.exports = function makeMemoryRoot() {
         collected.push(cur);
       }
     }
-    let temp = node.children[name = collected.join('')];
+    let temp = node.children[(name = collected.join('')).toLowerCase()];
     if (temp) {
       node = temp;
       if (create && create !== 'unknown') {
@@ -171,32 +170,26 @@ function Node(data, parent) {
       this.fileName = this.name + driverSep;
     }
   }
-  this.content = data.content;
+  if (data.content) {
+    this.setNodeContent(data.content);
+  } else {
+    this.content = null;
+  }
   this.depth = parent ? parent.depth + 1 : -1;
   this.isEmpty = this.isFile ? !this.content : true;
   this.version = 0;
   this.children = this.isFile ? null : Object.create(null);
-  let queued = false, that = this;
-  this.emitAsync = function () {
-    if (queued) {
-      return;
-    }
-    queued = true;
-    onNextTick(doEmit);
-  };
-  function doEmit() {
-    queued = false;
-    that.emit();
-  }
 }
 
 Node.prototype = Object.create(emmiter.prototype);
-
+Node.prototype.emitAsync = function (ev) {
+  onNextTick(this.emit, this, [ev]);
+};
 Node.prototype.createChild = function (data) {
   if (this.isFile) {
     throw 'Cannot create dir into file';
   }
-  const child = this.children[data.name] = new Node(data, this);
+  const child = this.children[data.name.toLowerCase()] = new Node(data, this);
   if (this.first) {
     child.next = this.first;
     this.first = child;
@@ -231,21 +224,23 @@ Node.prototype.reset = function () {
   }
   this.version++;
   this.mtime = process.hrtime();
-  this.emitAsync();
+  this.emitAsync('reset');
 };
 
 Node.prototype.setNodeContent = function (content) {
-  if (!this.isFile) {
-    if (!emittingCreate) {
-      emittingCreate = true;
-      onNextTick(emitCreate);
-    }
+  if (!this.isFile && content) {
+    this.emitAsync('created');
     this.isFile = true;
+
   }
+  if (this.snapshot) {
+    this.snapshot.dispose();
+  }
+  this.snapshot = makeSnapshot(content);
   this.content = content;
   this.version++;
   this.mtime = process.hrtime();
-  this.emitAsync();
+  this.emitAsync('changed');
 };
 
 Node.prototype.getChild = function (name) {
@@ -334,13 +329,5 @@ function emmiter(parent) {
   this.listeners = null;
 }
 
-
-function emitCreate() {
-  emittingCreate = false;
-  for (let ii = 0; ii < emitCreateQueue.length; ii++) {
-    emitCreateQueue[ii].emit('created');
-  }
-  emitCreateQueue.length = 0;
-}
 
 

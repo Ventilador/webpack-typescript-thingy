@@ -1,18 +1,4 @@
-const instance = require('./TsHooker')({
-  'target': 'es5',
-  'module': 'commonjs',
-  'noImplicitAny': false,
-  'preserveConstEnums': true,
-  'removeComments': false,
-  'sourceMap': true,
-  'experimentalDecorators': true,
-  'noEmitOnError': true,
-  'declaration': false,
-  'typeRoots': [
-    './customTypings'
-  ],
-  'forceConsistentCasingInFileNames': true
-});
+const instance = require('./TsHooker')();
 const { dirname } = require('path');
 let resolve, compilation;
 module.exports = function (source) {
@@ -21,10 +7,7 @@ module.exports = function (source) {
     compilation = this._compilation;
     resolve = makeResolver(this.loadModule, this.resolve);
   }
-
-  instance.processFile(this.resourcePath, source, resolve, function () {
-    cb(null, source);
-  });
+  instance.processFile(this.resourcePath, source, resolve, cb);
 };
 
 function makeResolver(loadModule, resolver) {
@@ -42,4 +25,9 @@ function makeResolver(loadModule, resolver) {
   }
 }
 
-function noop() { }
+function noop(err) {
+  if (err) {
+    console.log(err);
+  }
+
+}

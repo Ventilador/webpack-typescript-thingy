@@ -2,7 +2,7 @@ const ts = require('typescript');
 const { onNextTick } = require('./../utils');
 
 const k = ts.SyntaxKind;
-module.exports = function createDocumentRegistry(useCaseSensitiveFileNames, currentDirectory) {
+module.exports = function createDocumentRegistry(useCaseSensitiveFileNames, currentDirectory, sys, host) {
     if (currentDirectory === void 0) { currentDirectory = ""; }
     // Maps from compiler setting target (ES3, ES5, etc.) to all the cached documents we have
     // for those settings.
@@ -73,7 +73,7 @@ module.exports = function createDocumentRegistry(useCaseSensitiveFileNames, curr
             // We have an entry for this file.  However, it may be for a different version of
             // the script snapshot.  If so, update it appropriately.  Otherwise, we can just
             // return it as is.
-            if (entry.sourceFile.version !== version) {
+            if (+entry.sourceFile.version < +version) {
                 entry.sourceFile = ts.updateLanguageServiceSourceFile(entry.sourceFile, scriptSnapshot, version, scriptSnapshot.getChangeRange(entry.sourceFile.scriptSnapshot));
                 if (!entry.sourceFile.text) {
                     entry = entry;
@@ -89,7 +89,7 @@ module.exports = function createDocumentRegistry(useCaseSensitiveFileNames, curr
             }
         }
 
-        
+
         return entry.sourceFile;
     }
     function releaseDocument(fileName, compilationSettings) {
@@ -127,16 +127,37 @@ module.exports = function createDocumentRegistry(useCaseSensitiveFileNames, curr
 
     function getDependencies(file, options, done) {
         var path = ts.toPath(file, currentDirectory, getCanonicalFileName);
-        var key = getKeyForCompilationSettings(options);
-        var bucket = getBucketForCompilationSettings(key, /*createIfMissing*/ true);
-        var entry = bucket.get(path);
         let queued = 0;
         const imports = [];
         const args = [queueVisit, done, imports];
-        ts.forEachChild(entry.sourceFile, queueVisit);
+
+        let sourceFile = sys.readSourceFile(path);
+        if (!sourceFile) {
+            const text = sys.readFile(path);
+            if (!text) {
+                throw 'No content found for ' + path;
+            }
+            sourceFile = ts.createLanguageServiceSourceFile(path, host.getScriptSnapshot(path), options.target, host.getScriptVersion(path), /*setNodeParents*/ false, ts.ScriptKind.TS);
+            sys.writeSourceFile(path, sourceFile);
+        }
+        var key = getKeyForCompilationSettings(options);
+        var bucket = getBucketForCompilationSettings(key, /*createIfMissing*/ true);
+        var entry = bucket.get(path);
+        let deps = sys.getFileDependencies(path);
+        if (!entry || entry.sourceFile.version !== sourceFile.version) {
+            bucket.set(path, entry = {
+                sourceFile: sourceFile,
+                languageServiceRefCount: 1,
+                owners: []
+            });
+        } else if (deps) {
+            onNextTick(done, null, [deps, entry.sourceFile]);
+            return;
+        }
+        ts.forEachChild(sourceFile, queueVisit);
         function queueVisit(node) {
             queued++;
-            onNextTick(visit, node, args);
+            onNextTick.shortPile(visit, node, args);
         }
 
 
@@ -150,7 +171,9 @@ module.exports = function createDocumentRegistry(useCaseSensitiveFileNames, curr
 
             ts.forEachChild(this, next);
             if (!--queued) {
-                done(unique(importedModules));
+                const deps = unique(importedModules);
+                sys.setFileDependencies(path, deps);
+                done(deps, entry.sourceFile);
             }
         }
     }

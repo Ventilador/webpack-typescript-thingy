@@ -7,13 +7,12 @@ module.exports = function Host(options, sys) {
     const context = options.context;
     const compilerOptions = options.compilerOptions;
     const filesRegex = options.filesRegex;
-    const files = options.files;
+    const files = Object.create(null);
     return (instance = {
         getScriptFileNames: getScriptFileNames,
         getScriptVersion: getScriptVersion,
         getScriptSnapshot: getScriptSnapshot,
         getCurrentDirectory: getCurrentDirectory,
-        getScriptIsOpen: getScriptIsOpen,
         getCompilationSettings: getCompilationSettings,
         resolveTypeReferenceDirectives: resolveTypeReferenceDirectives,
         resolveModuleNames: resolveModuleNames,
@@ -28,7 +27,11 @@ module.exports = function Host(options, sys) {
         writeFile: writeFile
     });
     function getScriptFileNames() {
-        return files.filter(RegExp.prototype.test, filesRegex);
+        const result = Object.keys(files).filter(RegExp.prototype.test, filesRegex);
+        this.getScriptFileNames = function () {
+            return result;
+        };
+        return result;
     }
     function getScriptVersion(fileName) {
         return ensure(fileName).version;
@@ -38,9 +41,6 @@ module.exports = function Host(options, sys) {
     }
     function getCurrentDirectory() {
         return context;
-    }
-    function getScriptIsOpen() {
-        return true;
     }
     function getCompilationSettings() {
         return compilerOptions;
@@ -66,11 +66,14 @@ module.exports = function Host(options, sys) {
     }
     function writeFile(path, content) {
         sys.writeFile(path, content);
+
         if (files[path]) {
             files[path].text = content;
             files[path].snapshot.dispose();
             files[path].snapshot = ts.ScriptSnapshot.fromString(content);
             files[path].version++;
+        } else {
+            ensure(path);
         }
     }
     function ensure(fileName) {
@@ -81,6 +84,7 @@ module.exports = function Host(options, sys) {
                 version: 1,
                 snapshot: ts.ScriptSnapshot.fromString(text)
             };
+            this.getScriptFileNames = getScriptFileNames;
         }
         return files[fileName];
     }

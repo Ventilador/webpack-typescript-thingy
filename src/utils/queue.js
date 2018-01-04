@@ -31,11 +31,7 @@ module.exports = function makeQueue() {
             let times = amount;
             while (times--) {
                 if (last) {
-                    try {
-                        cb(last.val);
-                    } catch (err) {
-                        console.log(err);
-                    }
+                    cb(last.val);
                     last = last.prev;
                 } else {
                     times = 0;

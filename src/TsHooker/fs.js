@@ -103,7 +103,12 @@ module.exports = function makeMemFs(cb) {
             process.stdout.write(s);
         },
         readFile: readFile,
+        readSourceFile: readSourceFile,
         writeFile: writeFile,
+        writeSourceFile: writeSourceFile,
+        getFileDependencies: getFileDependencies,
+        getSnapshot: getSnapshot,
+        setFileDependencies: setFileDependencies,
         watchFile: function () { return { close: noop }; }, // skip
         watchDirectory: function () { return { close: noop }; }, // skip
         resolvePath: _path.resolve,
@@ -118,6 +123,7 @@ module.exports = function makeMemFs(cb) {
         },
         readDirectory: readDirectory,
         getModifiedTime: getModifiedTime,
+        getVersion: getVersion,
         createHash: createHash,
         getMemoryUsage: getMemoryUsage,
         getFileSize: getFileSize,
@@ -147,7 +153,9 @@ module.exports = function makeMemFs(cb) {
         setTimeout: setTimeout,
         clearTimeout: clearTimeout,
         ensure: ensure,
-        placeholder: root.placeholder
+        placeholder: root.placeholder,
+        normalize:_path.normalize
+
     };
     return instance;
     function readFile(fileName) {
@@ -158,6 +166,23 @@ module.exports = function makeMemFs(cb) {
         const file = root.makeFile(fileName);
         file.setNodeContent(content);
     }
+    function readSourceFile(fileName) {
+        return root.getProperty(fileName, 'sourceFile');
+    }
+    function writeSourceFile(fileName, sourceFile) {
+        root.setProperty(fileName, 'sourceFile', sourceFile);
+    }
+    function getSnapshot(fileName) {
+        return root.getProperty(fileName, 'snapshot');
+    }
+    function getFileDependencies(fileName) {
+        return root.getProperty(fileName, 'dependencies');
+    }
+    function setFileDependencies(fileName, deps) {
+        return root.setProperty(fileName, 'dependencies', deps);
+    }
+
+
 
     function fileExists(path) {
         return path.endsWith('.html') || path.endsWith('.less') || root.getProperty(path, 'isFile') === true;
@@ -187,6 +212,9 @@ module.exports = function makeMemFs(cb) {
     }
     function getModifiedTime(path) {
         return root.getProperty(path, 'mtime');
+    }
+    function getVersion(path) {
+        return root.getProperty(path, 'version');
     }
 
 

@@ -1,6 +1,6 @@
 {
   "esnext": true,
-  "bitwise": true,
+  "bitwise": false,
   "curly": true,
   "eqeqeq": true,
   "latedef": false,
@@ -10,6 +10,8 @@
   "validthis": true,
   "jasmine": true,
   "node": true,
+  "loopfunc": true,
+  "laxbreak": true,
   "globals": {
     "console": false,
     "angular": false,

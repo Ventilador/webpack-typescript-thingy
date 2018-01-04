@@ -1,13 +1,29 @@
 const tsImpl = require('typescript');
 const { resolve, dirname } = require('path');
-const { readFile } = require('fs');
+const { readFile, find } = require('./utils/fsPromisified');
 const fileSystem = require('./TsHooker/fs')(function (code) {
     console.log('exiting');
     process.exit(code);
 });
-const hostMaker = require('./TsHooker/HostService');
+// const hostMaker = require('./TsHooker/HostService');
 const isDefinitionFile = /\.d\.tsx?$/;
+const instance = require('./TsHooker')({
+    'target': 'es5',
+    'module': 'commonjs',
+    'noImplicitAny': false,
+    'preserveConstEnums': true,
+    'removeComments': false,
+    'sourceMap': true,
+    'experimentalDecorators': true,
+    'noEmitOnError': true,
+    'declaration': false,
+    'typeRoots': [
+      './customTypings'
+    ],
+    'forceConsistentCasingInFileNames': true
+  });
 module.exports = function makePlugin(options) {
+
     options = options || {};
     const context = options.context || process.cwd();
     const configFilePath = options.tsconfig || resolve(context, 'tsconfig.json');
@@ -19,10 +35,9 @@ module.exports = function makePlugin(options) {
     };
     function startTsServer(_, cb) {
         let files = 0;
-        readFile(configFilePath, function (err, content) {
-            if (err) {
-                throw 'tsconfig.json not found';
-            }
+        readFile(configFilePath).then(function (content) {
+            const asd = tsImpl.getDefaultCompilerOptions();
+            console.log(asd);
             let existingOptions = tsImpl.convertCompilerOptionsFromJson({}, context, 'atl.query');
             let jsonConfigFile = tsImpl.parseConfigFileTextToJson(configFilePath, content.toString());
             let compilerConfig = tsImpl.parseJsonConfigFileContent(
@@ -32,35 +47,53 @@ module.exports = function makePlugin(options) {
                 existingOptions,
                 configFilePath
             );
-            compilerConfig.fileNames.forEach(fileName => {
-                if (isDefinitionFile.test(fileName)) {
-                    files++;
-                    readFile(fileName, 'utf8', makeReadFileCb(fileName));
-                } else {
-                    fileSystem.placeholder(fileName);
-                }
-                
-            });
-            hostMaker({
-                context: process.cwd(),
-                compilerOptions: compilerConfig,
-                filesRegex: /\.tsx?$/,
-                files: compilerConfig.fileNames
-            }, fileSystem);
-        });
-        function makeReadFileCb(fileName) {
-            return function loadDefinitionFile(err, content) {
-                files--;
-                if (err) {
-                    console.error('file not found', fileName);
-                }
-                fileSystem.writeFile(fileName, content);
-                if (!files) {
-                    cb();
-                }
-            };
-        }
+            if (!compilerConfig.fileNames) {
+                compilerConfig.fileNames.forEach(fileName => {
+                    if (isDefinitionFile.test(fileName)) {
+                        files++;
+                        readFile(fileName, 'utf8').then(makeReadFileCb(fileName));
+                    } else {
+                        fileSystem.placeholder(fileName);
+                    }
+                });
+            } else {
 
+                find(resolve(process.cwd(), 'node_modules', '@types'), '.d.ts')
+                    .then(function (resolvedFiles) {
+                        resolvedFiles
+                            .reduce(pushTo, compilerConfig.fileNames)
+                            .forEach(fileName => {
+                                if (isDefinitionFile.test(fileName)) {
+                                    files++;
+                                    readFile(fileName, 'utf8').then(makeReadFileCb(fileName));
+                                } else {
+                                    fileSystem.placeholder(fileName);
+                                }
+
+                            });
+                    })
+                    .catch(function (err) {
+                        console.log(err);
+                    });
+            }
+
+            function makeReadFileCb(fileName) {
+                return function loadDefinitionFile(content) {
+                    files--;
+                    fileSystem.writeFile(fileName, content);
+                    if (!files) {
+                        instance.loadRootFiles(compilerConfig.fileNames);
+                        cb();
+                    }
+                };
+            }
+        });
+
+
+    }
+    function pushTo(prev, item) {
+        prev.push(item);
+        return prev;
     }
 };
 

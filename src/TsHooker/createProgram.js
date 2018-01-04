@@ -1,6 +1,12 @@
 const ts = require('typescript');
+const createTypeChecker = require('./createTypeChecker');
 // const onNextTick = require('./../utils').onNextTick;
 const ignoreDiagnosticCommentRegEx = /(^\s*$)|(^\s*\/\/\/?\s*(@ts-ignore)?)/;
+var SeenPackageName;
+(function (SeenPackageName) {
+    SeenPackageName[SeenPackageName.Exists = 0] = "Exists";
+    SeenPackageName[SeenPackageName.Modified = 1] = "Modified";
+})(SeenPackageName || (SeenPackageName = {}));
 module.exports = function createProgram(rootNames, options, host, oldProgram) {
     var program;
     var files = [];
@@ -82,8 +88,8 @@ module.exports = function createProgram(rootNames, options, host, oldProgram) {
     var filesByNameIgnoreCase = host.useCaseSensitiveFileNames() ? ts.createMap() : undefined;
     var shouldCreateNewSourceFile = shouldProgramCreateNewSourceFiles(oldProgram, options);
     var structuralIsReused = tryReuseStructureFromOldProgram();
+    ts.forEach(rootNames, function (name) { return processRootFile(name, /*isDefaultLib*/ false); });
     if (structuralIsReused !== 2 /* Completely */) {
-        ts.forEach(rootNames, function (name) { return processRootFile(name, /*isDefaultLib*/ false); });
         // load type declarations specified via 'types' argument or implicitly from types/ and node_modules/@types folders
         var typeReferences = ts.getAutomaticTypeDirectiveNames(options, host);
         if (typeReferences.length) {
@@ -130,6 +136,7 @@ module.exports = function createProgram(rootNames, options, host, oldProgram) {
     // unconditionally set oldProgram to undefined to prevent it from being captured in closure
     oldProgram = undefined;
     program = {
+        getFilesReference: function () { return filesByName; },
         getRootFileNames: function () { return rootNames; },
         getSourceFile: getSourceFile,
         getSourceFileByPath: getSourceFileByPath,
@@ -357,11 +364,7 @@ module.exports = function createProgram(rootNames, options, host, oldProgram) {
             return oldProgram.structureIsReused = 0 /* Not */;// jshint ignore:line
         }
         var oldSourceFiles = oldProgram.getSourceFiles();
-        var SeenPackageName;
-        (function (SeenPackageName) {
-            SeenPackageName[SeenPackageName.Exists = 0] = "Exists";
-            SeenPackageName[SeenPackageName.Modified = 1] = "Modified";
-        })(SeenPackageName || (SeenPackageName = {}));
+
         var seenPackageNames = ts.createMap();
         for (var _i = 0, oldSourceFiles_2 = oldSourceFiles; _i < oldSourceFiles_2.length; _i++) {
             var oldSourceFile = oldSourceFiles_2[_i];
@@ -545,13 +548,13 @@ module.exports = function createProgram(rootNames, options, host, oldProgram) {
         }
     }
     function getDiagnosticsProducingTypeChecker() {
-        return diagnosticsProducingTypeChecker || (diagnosticsProducingTypeChecker = ts.createTypeChecker(program, /*produceDiagnostics:*/ true));
+        return diagnosticsProducingTypeChecker || (diagnosticsProducingTypeChecker = createTypeChecker(program, /*produceDiagnostics:*/ true));
     }
     function dropDiagnosticsProducingTypeChecker() {
         diagnosticsProducingTypeChecker = undefined;
     }
     function getTypeChecker() {
-        return noDiagnosticsTypeChecker || (noDiagnosticsTypeChecker = ts.createTypeChecker(program, /*produceDiagnostics:*/ false));
+        return noDiagnosticsTypeChecker || (noDiagnosticsTypeChecker = createTypeChecker(program, /*produceDiagnostics:*/ false));
     }
     function emit(sourceFile, writeFileCallback, cancellationToken, emitOnlyDtsFiles, transformers) {
         return runWithCancellationToken(function () { return emitWorker(program, sourceFile, writeFileCallback, cancellationToken, emitOnlyDtsFiles, transformers); });
@@ -1291,7 +1294,7 @@ module.exports = function createProgram(rootNames, options, host, oldProgram) {
                 // Don't add the file if it has a bad extension (e.g. 'tsx' if we don't have '--allowJs')
                 // This may still end up being an untyped module -- the file won't be included but imports will be allowed.
                 var shouldAddFile = resolvedFileName
-                    && !getResolutionDiagnostic(options, resolution) // jshint ignore:line
+                    && !ts.getResolutionDiagnostic(options, resolution) // jshint ignore:line
                     && !options.noResolve // jshint ignore:line
                     && i < file.imports.length // jshint ignore:line
                     && !elideImport // jshint ignore:line
