@@ -214,12 +214,3 @@ function getExternalModuleName(node) {
     }
 }
 
-
-function isIn(kind) {
-    for (let ii = 1; ii < arguments.length; ii++) {
-        if (kind === arguments[ii]) {
-            return true;
-        }
-    }
-    return false;
-}

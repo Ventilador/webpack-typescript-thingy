@@ -1,22 +1,6 @@
 const ts = require('typescript');
 const fs = require('fs');
 const k = ts.SyntaxKind;
-// const instance = require('./TsHooker')({
-//     'target': 'es5',
-//     'module': 'commonjs',
-//     'moduleResolution': 'node',
-//     'noImplicitAny': false,
-//     'preserveConstEnums': true,
-//     'removeComments': false,
-//     'sourceMap': true,
-//     'experimentalDecorators': true,
-//     'noEmitOnError': true,
-//     'declaration': false,
-//     'typeRoots': [
-//         './customTypings'
-//     ],
-//     'forceConsistentCasingInFileNames': true
-// });
 
 
 

@@ -9,13 +9,28 @@
             "request": "launch",
             "name": "Launch Program",
             "program": "${workspaceRoot}/index.js",
-            "localRoot": "${workspaceRoot}",
+            "localRoot": "${workspaceRoot}"
         },
         {
             "type": "node",
             "request": "launch",
             "name": "Debug Proteus",
             "program": "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI/node_modules/webpack-dev-server/bin/webpack-dev-server.js",
+            "localRoot": "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI",
+            "cwd": "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI",
+            "runtimeArgs": [
+                "--max-old-space-size=4096"
+            ],
+            "args": [
+                "--config",
+                "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI/compilation/webpack.start.js"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug Proteus 2",
+            "program": "C:/Users/admin/Documents/github/webpack-typescript-thingy/src/index.js",
             "localRoot": "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI",
             "cwd": "C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI",
             "runtimeArgs": [

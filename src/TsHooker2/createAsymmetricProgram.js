@@ -26,6 +26,7 @@ function asyncProgram(options) {
     const sourceFileToPackageName = ts.createMap();
     const redirectTargetsSet = ts.createMap();
     const knownFiles = Object.create(null);
+
     let rootNames,
         diagnosticsProducingTypeChecker,
         files,
@@ -75,7 +76,9 @@ function asyncProgram(options) {
         getSymbolCount: function () { return getDiagnosticsProducingTypeChecker().getSymbolCount(); },
         getTypeCount: function () { return getDiagnosticsProducingTypeChecker().getTypeCount(); },
         getFileProcessingDiagnostics: function () { return fileProcessingDiagnostics; },
-        getResolvedTypeReferenceDirectives: function () { return resolvedTypeReferenceDirectives; },
+        getResolvedTypeReferenceDirectives: function () {
+            return resolvedTypeReferenceDirectives;
+        },
         isSourceFileFromExternalLibrary: isSourceFileFromExternalLibrary,
         isSourceFileDefaultLibrary: isSourceFileDefaultLibrary,
         dropDiagnosticsProducingTypeChecker: dropDiagnosticsProducingTypeChecker,
@@ -93,9 +96,19 @@ function asyncProgram(options) {
     };
 
     return program.reset();
+
     function loadRootFiles(files_) {
         (rootNames = files_).reduce(function (prev, cur) {
             prev[fs.normalize(cur).toLowerCase()] = undefined;
+            if (cur.endsWith('.d.ts')) {
+                const file = findSourceFile(cur);
+                processSourceFile(cur, true, /*packageId*/ undefined);
+                ts.forEach(file.referencedFiles, ref => {
+                    const referencedFileName = resolveTripleslashReference(ref.fileName, file.fileName);
+                    processSourceFile(referencedFileName, true, /*packageId*/ undefined, file, ref.pos, ref.end);
+                });
+
+            }
             return prev;
         }, knownFiles);
         files = [];
@@ -134,11 +147,7 @@ function asyncProgram(options) {
             return sourceFileWithAddedExtension;
         }
     }
-    function resolveTripleslashReference(moduleName, containingFile) {
-        var basePath = ts.getDirectoryPath(containingFile);
-        var referencedFileName = ts.isRootedDiskPath(moduleName) ? moduleName : ts.combinePaths(basePath, moduleName);
-        return ts.normalizePath(referencedFileName);
-    }
+
     function getSourceFileFromReference(referencingFile, ref) {
         return getSourceFileFromReferenceWorker(resolveTripleslashReference(ref.fileName, referencingFile.fileName), function (fileName) { return fs.readSourceFile(toPath(fileName)); });
     }
@@ -315,7 +324,7 @@ function asyncProgram(options) {
         return ts.sortAndDeduplicateDiagnostics(ts.concatenate(fileProcessingDiagnostics.getGlobalDiagnostics(), ts.concatenate(programDiagnostics.getGlobalDiagnostics(), options.configFile ? programDiagnostics.getDiagnostics(options.configFile.fileName) : [])));
     }
     function getSourceFile(path) {
-        return fs.readSourceFile(toPath(path, currentDirectory, getCanonicalFileName));
+        return findSourceFile(toPath(path, currentDirectory, getCanonicalFileName));
     }
     function getSyntacticDiagnostics(sourceFile, cancellationToken) {
         return getDiagnosticsHelper(sourceFile, getSyntacticDiagnosticsForFile, cancellationToken);
@@ -518,7 +527,8 @@ function asyncProgram(options) {
         }
     }
     function getDiagnosticsProducingTypeChecker() {
-        return diagnosticsProducingTypeChecker || (diagnosticsProducingTypeChecker = createTypeChecker(program, /*produceDiagnostics:*/ true));
+        return createTypeChecker(program, /*produceDiagnostics:*/ true);
+        // return diagnosticsProducingTypeChecker || (diagnosticsProducingTypeChecker = createTypeChecker(program, /*produceDiagnostics:*/ true));
     }
     function getSemanticDiagnostics(sourceFile, cancellationToken) {
         return getDiagnosticsHelper(sourceFile, getSemanticDiagnosticsForFile, cancellationToken);
@@ -567,12 +577,6 @@ function asyncProgram(options) {
         return true;
     }
     function getAndCacheDiagnostics(sourceFile, cancellationToken, cache, getDiagnostics) {
-        var cachedResult = sourceFile
-            ? cache.perFile && cache.perFile.get(sourceFile.path) // jshint ignore:line
-            : cache.allDiagnostics;
-        if (cachedResult) {
-            return cachedResult;
-        }
         var result = getDiagnostics(sourceFile, cancellationToken) || ts.emptyArray;
         if (sourceFile) {
             if (!cache.perFile) {
@@ -586,59 +590,197 @@ function asyncProgram(options) {
         return result;
     }
     function getTypeChecker() {
-        return noDiagnosticsTypeChecker || (noDiagnosticsTypeChecker = createTypeChecker(program, /*produceDiagnostics:*/ false));
+        // return noDiagnosticsTypeChecker || (noDiagnosticsTypeChecker = createTypeChecker(program, /*produceDiagnostics:*/ false));
+        return createTypeChecker(program, /*produceDiagnostics:*/ false);
     }
     function getDependencies(file, options, done) {
         var path = ts.toPath(file, currentDirectory, getCanonicalFileName);
-        let queued = 0;
-        const imports = [];
-        const args = [queueVisit, done, imports];
 
         let sourceFile = fs.readSourceFile(path);
-        if (sourceFile) {
-            sourceFile = ts.updateLanguageServiceSourceFile(path, fs.getSnapshot(path), options.target, fs.getVersion(path), /*setNodeParents*/ false, ts.ScriptKind.TS);
-        } else {
+        if (!sourceFile) {
             const text = fs.readFile(path);
             if (!text) {
                 throw 'No content found for ' + path;
             }
             sourceFile = ts.createLanguageServiceSourceFile(path, fs.getSnapshot(path), options.target, fs.getVersion(path), /*setNodeParents*/ false, ts.ScriptKind.TS);
+            sourceFile.version = fs.readFileVersion(path);
+        } else if (sourceFile.version !== fs.readFileVersion(path)) {
+            sourceFile = ts.updateLanguageServiceSourceFile(path, fs.getSnapshot(path), options.target, fs.getVersion(path), /*setNodeParents*/ false, ts.ScriptKind.TS);
+            sourceFile.version = fs.readFileVersion(path);
         }
+        sourceFile.path = path;
         fs.writeSourceFile(path, sourceFile);
+
+
 
         let deps = fs.getFileDependencies(path);
         if (deps) {
             onNextTick(done, null, [deps, sourceFile]);
             return;
         }
-        ts.forEachChild(sourceFile, queueVisit);
+        collectExternalModuleReferences(sourceFile);
+        deps = getModuleNames(sourceFile);
         path = fs.normalize(path).toLowerCase();
         if (!knownFiles[path]) {
             knownFiles[path] = true;
             files.push(sourceFile);
         }
-        function queueVisit(node) {
-            queued++;
-            onNextTick.shortPile(visit, node, args);
+        fs.setFileDependencies(path, deps);
+        done(deps, sourceFile);
+
+    }
+    function collectExternalModuleReferences(file) {
+        if (file.imports) {
+            return;
         }
-
-
-        function visit(next, done, importedModules) {
-            if (isIn(this.kind, k.ImportDeclaration, k.ImportEqualsDeclaration, k.RequireKeyword, k.CallExpression)) {
-                let moduleNameExpr = getExternalModuleName(this);
-                if (moduleNameExpr && moduleNameExpr.kind === ts.SyntaxKind.StringLiteral) {
-                    importedModules.push((moduleNameExpr).text);
-                }
+        var isJavaScriptFile = ts.isSourceFileJavaScript(file);
+        var isExternalModuleFile = ts.isExternalModule(file);
+        // file.imports may not be undefined if there exists dynamic import
+        var imports;
+        var moduleAugmentations;
+        var ambientModules;
+        // If we are importing helpers, we need to add a synthetic reference to resolve the
+        // helpers library.
+        if (options.importHelpers
+            && (options.isolatedModules || isExternalModuleFile) // jshint ignore:line
+            && !file.isDeclarationFile) { // jshint ignore:line
+            // synthesize 'import "tslib"' declaration
+            var externalHelpersModuleReference = ts.createLiteral(ts.externalHelpersModuleNameText);
+            var importDecl = ts.createImportDeclaration(/*decorators*/ undefined, /*modifiers*/ undefined, /*importClause*/ undefined);
+            externalHelpersModuleReference.parent = importDecl;
+            importDecl.parent = file;
+            imports = [externalHelpersModuleReference];
+        }
+        for (var _i = 0, _a = file.statements; _i < _a.length; _i++) {
+            var node = _a[_i];
+            collectModuleReferences(node, /*inAmbientModule*/ false);
+            if ((file.flags & 524288 /* PossiblyContainsDynamicImport */) || isJavaScriptFile) { // jshint ignore:line
+                collectDynamicImportOrRequireCalls(node);
             }
+        }
+        file.imports = imports || ts.emptyArray;
+        file.moduleAugmentations = moduleAugmentations || ts.emptyArray;
+        file.ambientModuleNames = ambientModules || ts.emptyArray;
+        return;
+        function collectModuleReferences(node, inAmbientModule) {
+            switch (node.kind) {
+                case k.ImportDeclaration:
+                case k.ImportEqualsDeclaration:
+                case k.ExportDeclaration:
+                    const moduleNameExpr = getExternalModuleName(node);
+                    if (!moduleNameExpr || !ts.isStringLiteral(moduleNameExpr)) {
+                        break;
+                    }
+                    if (!moduleNameExpr.text) {
+                        break;
+                    }
 
-            ts.forEachChild(this, next);
-            if (!--queued) {
-                const deps = unique(importedModules);
-                fs.setFileDependencies(path, deps);
-                done(deps, sourceFile);
+                    // TypeScript 1.0 spec (April 2014): 12.1.6
+                    // An ExternalImportDeclaration in an AmbientExternalModuleDeclaration may reference other external modules
+                    // only through top - level external module names. Relative external module names are not permitted.
+                    if (!inAmbientModule || !ts.isExternalModuleNameRelative(moduleNameExpr.text)) {
+                        (imports || (imports = [])).push(moduleNameExpr);
+                    }
+                    break;
+                case k.ModuleDeclaration:
+                    if (ts.isAmbientModule(node) && (inAmbientModule || ts.hasModifier(node, ts.ModifierFlags.Ambient) || file.isDeclarationFile)) {
+                        const moduleName = (node).name;
+                        const nameText = ts.getTextOfIdentifierOrLiteral(moduleName);
+                        // Ambient module declarations can be interpreted as augmentations for some existing external modules.
+                        // This will happen in two cases:
+                        // - if current file is external module then module augmentation is a ambient module declaration defined in the top level scope
+                        // - if current file is not external module then module augmentation is an ambient module declaration with non-relative module name
+                        //   immediately nested in top level ambient module declaration .
+                        if (isExternalModuleFile || (inAmbientModule && !ts.isExternalModuleNameRelative(nameText))) {
+                            (moduleAugmentations || (moduleAugmentations = [])).push(moduleName);
+                        }
+                        else if (!inAmbientModule) {
+                            if (file.isDeclarationFile) {
+                                // for global .d.ts files record name of ambient module
+                                (ambientModules || (ambientModules = [])).push(nameText);
+                            }
+                            // An AmbientExternalModuleDeclaration declares an external module.
+                            // This type of declaration is permitted only in the global module.
+                            // The StringLiteral must specify a top - level external module name.
+                            // Relative external module names are not permitted
+
+                            // NOTE: body of ambient module is always a module block, if it exists
+                            const body = (node).body;
+                            if (body) {
+                                for (const statement of body.statements) {
+                                    collectModuleReferences(statement, /*inAmbientModule*/ true);
+                                }
+                            }
+                        }
+                    }
+            }
+        }
+        function collectDynamicImportOrRequireCalls(node) {
+            if (ts.isRequireCall(node, /*checkArgumentIsStringLiteral*/ true)) {
+                (imports || (imports = [])).push(node.arguments[0]);
+            }
+            else if (ts.isImportCall(node) && node.arguments.length === 1 && node.arguments[0].kind === 9 /* StringLiteral */) {
+                (imports || (imports = [])).push(node.arguments[0]);
+            }
+            else {
+                ts.forEachChild(node, collectDynamicImportOrRequireCalls);
             }
         }
     }
+
+    function getModuleNames(_a) {
+        var imports = _a.imports, moduleAugmentations = _a.moduleAugmentations;
+        var res = imports.map(function (i) { return i.text; });
+        for (var _i = 0, moduleAugmentations_1 = moduleAugmentations; _i < moduleAugmentations_1.length; _i++) {
+            var aug = moduleAugmentations_1[_i];
+            if (aug.kind === 9 /* StringLiteral */) {
+                res.push(aug.text);
+            }
+            // Do nothing if it's an Identifier; we don't need to do module resolution for `declare global`.
+        }
+        return res;
+    }
+    function findSourceFile(path) {
+        let sourceFile = fs.readSourceFile(path);
+        if (!sourceFile) {
+            const text = fs.readFile(path);
+            if (!text) {
+                throw 'No content found for ' + path;
+            }
+            sourceFile = ts.createLanguageServiceSourceFile(path, fs.getSnapshot(path), options.target, fs.getVersion(path), /*setNodeParents*/ false, ts.ScriptKind.TS);
+            sourceFile.version = fs.readFileVersion(path);
+            fs.writeSourceFile(path, sourceFile);
+        } else if (sourceFile.version !== fs.readFileVersion(path)) {
+            sourceFile = ts.updateLanguageServiceSourceFile(path, fs.getSnapshot(path), options.target, fs.getVersion(path), /*setNodeParents*/ false, ts.ScriptKind.TS);
+            sourceFile.version = fs.readFileVersion(path);
+        }
+        sourceFile.path = path;
+        return sourceFile;
+    }
+
+    function resolveTripleslashReference(moduleName, containingFile) {
+        var basePath = ts.getDirectoryPath(containingFile);
+        var referencedFileName = ts.isRootedDiskPath(moduleName) ? moduleName : ts.combinePaths(basePath, moduleName);
+        return ts.normalizePath(referencedFileName);
+    }
+    function processSourceFile(fileName, isDefaultLib, packageId, refFile, refPos, refEnd) {
+        getSourceFileFromReferenceWorker(fileName, getSourceFile, function (diagnostic) {
+            var args = [];
+            for (var _i = 1; _i < arguments.length; _i++) {
+                args[_i - 1] = arguments[_i];
+            }
+            fileProcessingDiagnostics.add(refFile !== undefined && refEnd !== undefined && refPos !== undefined
+                ? ts.createFileDiagnostic.apply(void 0, [refFile, refPos, refEnd - refPos, diagnostic].concat(args))
+                : ts.createCompilerDiagnostic.apply(void 0, [diagnostic].concat(args))); // jshint ignore:line
+        }, refFile);
+    }
+
+    // function processReferencedFiles(file, isDefaultLib) {
+    //     ts.forEach(file.referencedFiles, function (ref) {
+    //         var referencedFileName = resolveTripleslashReference(ref.fileName, file.fileName);
+    //         processSourceFile(referencedFileName, isDefaultLib, /*packageId*/ undefined, file, ref.pos, ref.end);
+    //     });
+    // }
 }
 function getNewLine() { return '\r\n'; }
 
@@ -681,20 +823,6 @@ function computeCommonSourceDirectoryOfFilenames(fileNames, currentDirectory, ge
 }
 
 
-function unique(arr) {
-    let length = arr.length;
-    const result = [];
-    const map = Object.create(null);
-    while (length--) {
-        const cur = arr[length];
-        if (!map[cur]) {
-            map[cur] = true;
-            result.push(cur);
-        }
-    }
-    return result;
-}
-
 
 function getExternalModuleName(node) {
     if (node.kind === ts.SyntaxKind.ImportDeclaration) {
@@ -712,16 +840,6 @@ function getExternalModuleName(node) {
     if (node.kind === ts.SyntaxKind.CallExpression && node.expression.escapedText === 'require') {
         return node.arguments[0];
     }
-}
-
-
-function isIn(kind) {
-    for (let ii = 1; ii < arguments.length; ii++) {
-        if (kind === arguments[ii]) {
-            return true;
-        }
-    }
-    return false;
 }
 
 

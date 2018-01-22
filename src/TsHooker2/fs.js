@@ -102,6 +102,7 @@ module.exports = function makeMemFs(cb) {
         write: function (s) {
             process.stdout.write(s);
         },
+        readFileVersion:readFileVersion,
         readFile: readFile,
         readSourceFile: readSourceFile,
         writeFile: writeFile,
@@ -158,6 +159,9 @@ module.exports = function makeMemFs(cb) {
 
     };
     return instance;
+    function readFileVersion(fileName){
+        return root.getProperty(fileName, 'version');
+    }
     function readFile(fileName) {
         return root.getProperty(fileName, 'content');
     }
