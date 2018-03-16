@@ -1,9 +1,11 @@
 const { onNextTick } = require('./../utils');
-
 module.exports = function (options, resolver, require) {
     const items = Object.create(null);
     items.done = function (_, cb) {
-        cb(null);
+        cb(null, _);
+    };
+    items.error = function (err, cb) {
+        cb(err);
     };
     const service = {
         define: function (from, cb) {

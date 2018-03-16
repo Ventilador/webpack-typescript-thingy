@@ -1,0 +1,34 @@
+{
+    "compilerOptions": {
+        "target": "es2016",
+        "declaration": false,
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "noImplicitAny": false,
+        "preserveConstEnums": true,
+        "removeComments": false,
+        "sourceMap": false,
+        "experimentalDecorators": true,
+        "noEmitOnError": true,
+        "baseUrl": ".",
+        "forceConsistentCasingInFileNames": true,
+        "typeRoots": [
+            "./node_modules/@types"
+        ],
+        "types": [
+            "node"
+        ]
+    },
+    "exclude": [
+        "node_modules",
+        "build",
+        "wwwroot",
+        "dist",
+        ".tmp",
+        "utils",
+        "webpack"
+    ],
+    "filesGlob": [
+        "src/**/*.ts"
+    ]
+}
