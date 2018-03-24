@@ -9,6 +9,7 @@
         "removeComments": false,
         "sourceMap": false,
         "experimentalDecorators": true,
+        "outDir": "build",
         "noEmitOnError": true,
         "baseUrl": ".",
         "forceConsistentCasingInFileNames": true,

@@ -7,7 +7,12 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "8.5.1",
+    "colors": "^1.2.1",
     "typescript": "^2.6.2"
+  },
+  "scripts": {
+    "build": "yarn clean:build && tsc",
+    "clean:build": "rimraf build"
   },
   "engines": {
     "node": ">=0.10.0"
