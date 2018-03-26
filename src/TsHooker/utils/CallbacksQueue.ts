@@ -14,11 +14,11 @@ export function CallbackQueue() {
         id = parseInt(id, 10);
         const fn = list[id];
         list[id] = null;
-        last = new NodeItem(id, last);
+        append(id);
         return fn;
     }
 
-    function put(cb: Function): string {
+    function put(cb: Function, recursive?: boolean): string {
         if (first) {
             const toReturn = first.val;
             first = first.next;
@@ -28,7 +28,10 @@ export function CallbackQueue() {
             list[toReturn] = cb;
             return toReturn.toString();
         } else {
-            return grow(), put(cb);
+            if (recursive) {
+                recursive = recursive;
+            }
+            return grow(), put(cb, true);
         }
     }
 

@@ -7,6 +7,3 @@ export function getFileConfig(host: IShortHost) {
         });
     };
 }
-function flush(fn: Function) {
-    fn(this);
-}

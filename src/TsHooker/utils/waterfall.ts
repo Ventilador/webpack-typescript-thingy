@@ -1,16 +1,21 @@
 import { onNextTick } from './waterfallProcessor';
-export function makeWaterfall(host: IShortHost, docs: IShortDocReg, readFile: Function, methods: Function[]) {
+export function makeWaterfall(host: IShortHost, docs: IShortDocReg, readFile: Function, resolveFile: Function, methods: Function[]) {
     Waterfall.prototype.host = host;
     Waterfall.prototype.docReg = docs;
     Waterfall.prototype.options = host.getCompilationSettings();
     Waterfall.prototype.readFile = readFile;
-    return function apply(startingRequest: IRequestContext, next: ICommonCallback) {
+    Waterfall.prototype.resolveFile = resolveFile;
+    Waterfall.prototype.applyWaterfall = apply;
+    return apply;
+    function apply(startingRequest: IRequestContext, next: ICommonCallback) {
         new Waterfall(methods, startingRequest, next); // tslint:disable-line
     };
 }
 class Waterfall implements IWaterfall {
     public _apply: Function;
+    public applyWaterfall: (startingRequest: IRequestContext, next: ICommonCallback) => void;
     public readFile: any;
+    public resolveFile: any;
     public options: CompilerOptions;
     public host: IShortHost;
     public docReg: IShortDocReg;

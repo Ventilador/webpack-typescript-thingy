@@ -1,5 +1,4 @@
 import { sep, normalize, basename } from 'path';
-const driverSep = ':';
 import { resolve, dirname, extname } from 'path';
 // [.ttf(\?v=\d+\.\d+\.\d+)?$/, /\.eot(\?v=\d+\.\d+\.\d+)?$/, /\.svg(\?v=\d+\.\d+\.\d+)?$/]
 const fastExtensions = {
@@ -24,6 +23,7 @@ class NodeItem {
         return new NodeItem('', null);
     }
     private _lowname: string;
+    private _fullPath: string;
     private children: Dictionary<NodeItem>;
     private constructor(private name: string, private parent: NodeItem) {
         this.val = null;
@@ -56,13 +56,20 @@ class NodeItem {
             this.name = this._lowname = this.val = this.children = null;
         }
     }
-    get fullPath() {
+    getParent() {
+        return this.parent;
+    }
+    fullPath() {
+        if (this._fullPath) {
+            return this._fullPath;
+        }
         let cur = this as NodeItem;
-        let path = '';
-        do {
-            path = cur.name + sep + path;
-        } while (cur = cur.parent);
-        return path;
+        let path = cur.name;
+        while ((cur = cur.parent)) {
+            path = cur.name ? cur.name + sep + path : path;
+        };
+
+        return this._fullPath = normalize(path);
     }
 }
 function childrenName(child: any) {
@@ -107,7 +114,7 @@ export const Directory = (function () {
         },
         resolve: function (module: string, containingFile: string, compilerOptions: any) {
             if (module[0] !== '.' && module[0] !== '/') {
-                return nodeModule(module);
+                return;
             }
             const fileName = basename(module);
             const extension = extname(fileName);
@@ -120,21 +127,34 @@ export const Directory = (function () {
                     resolvedFileName: resolve(folder, module)
                 };
             }
-            const path = dirname(resolve(folder, module));
-            const node = getNode(path, false);
-            if (node) {
-                for (let i = 0, ar = node.getChildren(), cur = ar[i]; i < ar.length; cur = ar[++i]) {
-                    if (resolves(fileName, cur)) {
-                        return {
-                            extension: extname(cur),
-                            isExternalLibraryImport: false,
-                            packageId: undefined,
-                            resolvedFileName: resolve(path, cur)
-                        };
+            let nodeItem = getNode(folder, false);
+            if (!nodeItem) {
+                throw new Error('Could not find path ' + containingFile);
+            }
+            const arr = module.split('/');
+            for (let i = 0; i < arr.length; i++) {
+                const cur = arr[i];
+                if (cur === '..') {
+                    nodeItem = nodeItem.getParent();
+                } else if (!cur) {
+                    nodeItem = nodeItem.getChild('index.ts');
+                } else if (cur !== '.') {
+                    let tempNode = nodeItem.getChild(cur);
+                    if (!tempNode) {
+                        tempNode = nodeItem.getChild(cur + '.ts');
                     }
+                    nodeItem = tempNode;
                 }
             }
-            return null;
+            return {
+                extension: '.ts',
+                isExternalLibraryImport: false,
+                packageId: undefined,
+                resolvedFileName: nodeItem.isLeaf() ? nodeItem.fullPath() : nodeItem.getChild('index.ts').fullPath()
+            };
+
+
+
         },
         delete: function (path: string) {
             const node = getNode(path, false);
@@ -161,15 +181,15 @@ export const Directory = (function () {
     function resolves(name1: string, name2: string, internal?: boolean) {
         const low1 = name1.toLowerCase(), low2 = name2.toLowerCase();
         if (low1 === low2) {
-            return true;
+            return name2;
         }
         if (exts && exts.length) {
             if (exts.length === 1) {
-                return (low1 + exts[0] === low2);
+                return (low1 + exts[0] === low2) && name2;
             }
             for (let i = 0; i < exts.length; i++) {
                 if (low1 + exts[i] === low2) {
-                    return true;
+                    return name2;
                 }
             }
         }
@@ -177,9 +197,9 @@ export const Directory = (function () {
             return false;
         }
         if (name1.endsWith('/')) {
-            return resolves(name1 + 'index', name2, true);
+            return resolves(name1 + 'index', name2, true) && (name2 + '/index.ts');
         }
-        return resolves(name1 + sep + 'index', name2, true);
+        return resolves(name1 + sep + 'index', name2, true) && (name2 + '/index.ts');
     }
 
     function getNode(path_: string, create: boolean) {
@@ -199,7 +219,7 @@ export const Directory = (function () {
                     }
                 }
                 collected.length = 0;
-            } else if (cur !== driverSep) {
+            } else {
                 collected.push(cur);
             }
         }

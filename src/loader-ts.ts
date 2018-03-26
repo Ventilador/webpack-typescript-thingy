@@ -10,29 +10,29 @@ module.exports = function (source: string) {
     if (err) {
       cb(err);
     } else {
-      Promise.all(result.dependencies.map(toPromise))
-        .then(function () {
-          cb(null, result.output, result.sourceMap);
-        });
+      // Promise.all(result.dependencies.map(toPromise))
+      //   .then(function () {
+      cb(null, result.output, result.sourceMap);
+      // });
       // result.dependencies.forEach(addDependency);
       // cb(null, result.output, result.sourceMap);
     }
   });
 
-  function toPromise(dep: string) {
-    return new Promise(function (res: Function) {
-      resolve(context, dep, function (err: string, path: string) {
-        if (err) {
-          res();
-          return;
-        }
-        if (path.endsWith('.ts')) {
-          addDependency(path);
-        }
-        res();
-      });
-    });
-  }
+  // function toPromise(dep: string) {
+  //   return new Promise(function (res: Function) {
+  //     resolve(context, dep, function (err: string, path: string) {
+  //       if (err) {
+  //         res();
+  //         return;
+  //       }
+  //       if (path.endsWith('.ts')) {
+  //         addDependency(path);
+  //       }
+  //       res();
+  //     });
+  //   });
+  // }
 };
 
 

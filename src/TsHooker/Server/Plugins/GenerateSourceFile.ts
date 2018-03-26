@@ -1,4 +1,4 @@
-import * as ts from 'typescript';
+import * as ts from './../../../typescript';
 
 let key = null;
 export function GenerateSourceFile(this: IWaterfall, request: IRequestContext) {

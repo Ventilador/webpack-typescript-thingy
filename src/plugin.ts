@@ -64,6 +64,7 @@ export = function makePlugin(options: any) {
 
 
     function startTsServer(_: any, cb: any) {
+        const mainModule = findMainModule(require, 0);
         const resolvePath = resolver(this.resolvers.normal);
         const myFs = this.resolvers.normal.fileSystem;
         const watcher = new Watchpack(this.watchFileSystem.watcherOptions);
@@ -99,6 +100,7 @@ export = function makePlugin(options: any) {
                     $$extensions: exts,
                     $$matchers: matchers,
                     webpackThingy: compilerConfig.raw.webpackThingy,
+                    typescriptPath: mainModule,
                     entries: entries
                 };
                 compilerConfig.fileNames = compilerConfig.fileNames.map(normalize);
@@ -110,6 +112,17 @@ export = function makePlugin(options: any) {
                 cb();
             }
         });
+    }
+
+    function findMainModule(req: any, index: number) {
+        try {
+            return require.resolve(req.main.paths[index] + '\\typescript');
+        } catch (err) {
+            if (index < req.main.paths.length) {
+                return findMainModule(req, index + 1);
+            }
+            return require.resolve('typescript');
+        }
     }
 
     function _readFile(myFs: any) {
@@ -124,8 +137,8 @@ export = function makePlugin(options: any) {
     }
     function resolver(obj: any) {
         const method = obj.resolve;
-        return function () {
-            method.apply(obj, arguments);
+        return function (fromDir: string, relPath: string, cb: (err: Error, fullPath: string) => void) {
+            method.call(obj, null, fromDir, relPath, cb);
         };
     }
 

@@ -1,11 +1,15 @@
 import { createDocumentRegistry } from './DocumentRegistry';
-import * as ts from 'typescript';
+import * as ts from './../../typescript';
 import { transpile } from './Transpiler';
 import { Parser } from './../utils/BufferConnector';
 import { MESSAGE_TYPE } from './../utils/enums';
 import { init } from './';
 import { CallbackQueue } from './../utils/CallbacksQueue';
 (function AsyncConnector() {
+    // TODO send messages to parent process
+    console.log = console.error = console.debug = console.info = console.warn = function () {
+        throw 'Please do not log';
+    };
     let emitFile: any;
     let compilerOptions: ts.ParsedCommandLine = null;
     const cbs = CallbackQueue();
@@ -48,22 +52,37 @@ import { CallbackQueue } from './../utils/CallbacksQueue';
                 break;
             case MESSAGE_TYPE.INIT:
                 compilerOptions = JSON.parse(request.data);
-                emitFile = init(compilerOptions, readFile) as any;
+                (ts as any).initFrom(compilerOptions.raw.typescriptPath);
+                emitFile = init(compilerOptions, readFile, resolveFile) as any;
                 break;
             case MESSAGE_TYPE.DIAGNOSTICS:
-                send({
-                    method: MESSAGE_TYPE.DIAGNOSTICS,
-                    id: request.id,
-                    data: JSON.stringify(emitFile.doCheck())
+                emitFile.doCheck(function (result: any) {
+                    send({
+                        method: MESSAGE_TYPE.DIAGNOSTICS,
+                        id: request.id,
+                        data: JSON.stringify(result)
+                    });
                 });
+
                 break;
             case MESSAGE_TYPE.READ_FILE:
-            case MESSAGE_TYPE.RESOLVE_FILE:
                 cbs.take(request.id)(request.data);
+                break;
+            case MESSAGE_TYPE.RESOLVE_FILE:
+                cbs.take(request.id)(null, request.data);
                 break;
             default:
                 throw 'Invalid message "' + request.method + '"';
         }
+    }
+
+    function resolveFile(dir: string, file: string, cb: Function) {
+        send({
+            method: MESSAGE_TYPE.RESOLVE_FILE,
+            id: cbs.put(cb),
+            fileName: file,
+            data: dir
+        });
     }
 
     function readFile(fileName: string, cb: Function) {

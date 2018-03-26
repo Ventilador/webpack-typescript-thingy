@@ -4,7 +4,7 @@ import { join } from 'path';
 import { MESSAGE_TYPE } from './../utils/enums';
 import { CallbackQueue } from './../utils/CallbacksQueue';
 import { MODE } from './../utils/mode';
-import ts = require('typescript');
+import * as ts from './../../typescript';
 let id = 0;
 
 
@@ -71,7 +71,7 @@ export function AsyncConnector(this: void, compilerOptions: ts.ParsedCommandLine
     function processChunk(request: IMessage) {
         switch (request.method) {
             case MESSAGE_TYPE.RESOLVE_FILE:
-                fs.resolveFile(request.fileName, request.data, answer(request));
+                fs.resolveFile(request.data, request.fileName, answer(request));
                 break;
             case MESSAGE_TYPE.READ_FILE:
                 fs.readFile(request.fileName, answer(request));
@@ -84,10 +84,12 @@ export function AsyncConnector(this: void, compilerOptions: ts.ParsedCommandLine
                 }
                 break;
             case MESSAGE_TYPE.EMIT_FILE:
-            case MESSAGE_TYPE.DIAGNOSTICS:
-                const id = request.id;
                 request.dependencies = request.dependencies && JSON.parse(request.dependencies);
-                cbs.take(id)(null, request);
+                cbs.take(request.id)(null, request);
+                break;
+            case MESSAGE_TYPE.DIAGNOSTICS:
+                request.dependencies = request.dependencies && JSON.parse(request.dependencies);
+                cbs.take(request.id)(null, request);
                 break;
             default:
                 throw 'Invalid Message: \n' + JSON.stringify(request);

@@ -83,6 +83,11 @@ export const Parser = {
 
     }
 };
+
+function flusher(thing: any[]) {
+
+}
+
 function isNumber(str: string) {
     return str === '1' ||
         str === '2' ||

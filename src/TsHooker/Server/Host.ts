@@ -1,4 +1,4 @@
-import * as ts from 'typescript';
+import * as ts from './../../typescript';
 import { normalize } from 'path';
 import { singleton } from './../utils/singleTon';
 import { Directory } from './../utils/Directory';
@@ -47,6 +47,7 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
     Directory.knowExtensions(parsed.raw.$$matchers.map(i => new RegExp(i)));
     let projectVersion = 0;
     let files = Directory;
+    const modules = Object.create(null);
     class Host {
         filesRegex: RegExp;
         getCustomTransformers: any;
@@ -75,8 +76,6 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
             const file = files.get(fileName);
             if (file) {
                 return file.snapshot;
-            } else {
-                console.log(fileName);
             }
         }
 
@@ -90,6 +89,14 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
 
         getCompilationSettings() {
             return compilerOptions;
+        }
+
+        readModule(name: string) {
+            return modules[name];
+        }
+
+        writeModule(name: string, files: string[]) {
+            modules[name] = files;
         }
 
         resolveTypeReferenceDirectives(typeDirectiveNames: string[], containingFile: string) {
@@ -107,7 +114,8 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
         }
 
         resolveModuleNames(moduleNames: string[], containingFile: string) {
-            const resolved = moduleNames.map(module => Directory.resolve(module, containingFile, compilerOptions) || ts.resolveModuleName(module, containingFile, compilerOptions, ts.sys).resolvedModule);
+            const resolved = moduleNames.map(module =>
+                Directory.resolve(module, containingFile, compilerOptions) || ts.resolveModuleName(module, containingFile, compilerOptions, this as any).resolvedModule);
 
             resolved.forEach(res => {
                 if (res && res.resolvedFileName) {

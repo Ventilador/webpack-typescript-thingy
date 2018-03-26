@@ -1,5 +1,5 @@
 import * as path from 'path';
-import * as ts from 'typescript';
+import * as ts from './../../typescript';
 export function createChecker(host: ts.LanguageServiceHost & IShortHost, registry: ts.DocumentRegistry) {
     const languageService = ts.createLanguageService(host, registry);
     const instanceName = 'Typescript thingy';
@@ -7,12 +7,7 @@ export function createChecker(host: ts.LanguageServiceHost & IShortHost, registr
     const compilerConfig = { options: host.getCompilationSettings() };
     return processDiagnostics;
     function processDiagnostics() {
-        let program;
-        try {
-            program = languageService.getProgram();
-        } catch (err) {
-            throw err;
-        }
+        let program = languageService.getProgram();
         const allDiagnostics = program
             .getOptionsDiagnostics()
             .concat((program.getGlobalDiagnostics as any)());
@@ -25,7 +20,7 @@ export function createChecker(host: ts.LanguageServiceHost & IShortHost, registr
             });
         }
 
-        let nativeGetter: Function;
+        let nativeGetter: any;
         if (filters.length > 0) {
             nativeGetter = program.getSourceFiles;
             program.getSourceFiles = () => nativeGetter().filter(file => {

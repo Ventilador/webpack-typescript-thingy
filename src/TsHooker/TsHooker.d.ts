@@ -66,6 +66,8 @@ interface IShortDocReg {
     getKeyForCompilationSettings(...args: any[])
 }
 interface IShortHost {
+    readModule(name: string): string[];
+    writeModule(name: string, files: string[]): void;
     getFile(fileName: string): IFile;
     readFile(path: string): string;
     getCompilationSettings(): CompilerOptions;
@@ -82,6 +84,8 @@ interface IWaterfall {
     docReg: IShortDocReg;
     next: ICommonCallback;
     bail: ICommonCallback;
+    applyWaterfall(startingRequest: IRequestContext, next: ICommonCallback): void;
+    resolveFile(fromDir: string, relPath: string, cb: (err: Error, fullPath: string) => void): void;
     readFile(fileName: string, cb: (content: string) => void): void;
     asyncBail: () => IBoundCommonCallback;
     asyncNext: () => IBoundCommonCallback;

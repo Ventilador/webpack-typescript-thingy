@@ -1,4 +1,4 @@
-import * as ts from 'typescript';
+import * as ts from './../../typescript';
 
 const DefinitionReg = /\.d\.tsx?$/;
 export function watch(myFs: any, watcher: IWatcher, files: string[], folders: string[], update: (file: string, content: string) => void) {

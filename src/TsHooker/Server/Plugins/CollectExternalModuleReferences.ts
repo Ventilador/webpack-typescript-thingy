@@ -1,51 +1,51 @@
-import * as ts_ from 'typescript';
+import * as ts_ from './../../../typescript';
+import { extname } from 'path';
 const ts = ts_ as any;
-const commentExp = /^\/\/\s?thingy-dive/;
-const commentExp2 = /^\/\*\s?thingy-dive\s?\*\//;
+// const commentExp = /^\/\/\s?thingy-dive/;
+// const commentExp2 = /^\/\*\s?thingy-dive\s?\*\//;
+
 export function CollectExternalModuleReferences(this: IWaterfall, request: IRequestContext) {
     const options = this.options;
-    const deepDive = commentExp.test(request.data) || commentExp2.test(request.data);
+    const deepDive = false; //  commentExp.test(request.data) || commentExp2.test(request.data);
     const file = request.sourceFile as any;
-    if (file.imports) {
-        return;
-    }
-    var isJavaScriptFile = ts.isSourceFileJavaScript(file);
-    var isExternalModuleFile = ts.isExternalModule(file);
-    // file.imports may not be undefined if there exists dynamic import
-    var imports;
-    var moduleAugmentations;
-    var ambientModules;
-    // If we are importing helpers, we need to add a synthetic reference to resolve the
-    // helpers library.
-    if (options.importHelpers
-        && (options.isolatedModules || isExternalModuleFile) // jshint ignore:line
-        && !file.isDeclarationFile) { // jshint ignore:line
-        // synthesize 'import "tslib"' declaration
-        var externalHelpersModuleReference = ts.createLiteral(ts.externalHelpersModuleNameText);
-        var importDecl = ts.createImportDeclaration(/*decorators*/ undefined, /*modifiers*/ undefined, /*importClause*/ undefined);
-        externalHelpersModuleReference.parent = importDecl;
-        importDecl.parent = file;
-        imports = [externalHelpersModuleReference];
-    }
-    let ticks = 0;
-    for (var _i = 0, _a = file.statements; _i < _a.length; _i++) {
-        var node = _a[_i];
-        collectModuleReferences(node, /*inAmbientModule*/ false);
-        if ((file.flags & 524288 /* PossiblyContainsDynamicImport */) || isJavaScriptFile || deepDive) { // tslint:disable-line
-            collectDynamicImportOrRequireCalls(node);
+    if (!file.imports) {
+        var isJavaScriptFile = ts.isSourceFileJavaScript(file);
+        var isExternalModuleFile = ts.isExternalModule(file);
+        // file.imports may not be undefined if there exists dynamic import
+        var imports;
+        var moduleAugmentations;
+        var ambientModules;
+        // If we are importing helpers, we need to add a synthetic reference to resolve the
+        // helpers library.
+        if (options.importHelpers
+            && (options.isolatedModules || isExternalModuleFile) // jshint ignore:line
+            && !file.isDeclarationFile) { // jshint ignore:line
+            // synthesize 'import "tslib"' declaration
+            var externalHelpersModuleReference = ts.createLiteral(ts.externalHelpersModuleNameText);
+            var importDecl = ts.createImportDeclaration(/*decorators*/ undefined, /*modifiers*/ undefined, /*importClause*/ undefined);
+            externalHelpersModuleReference.parent = importDecl;
+            importDecl.parent = file;
+            imports = [externalHelpersModuleReference];
         }
+        for (var _i = 0, _a = file.statements; _i < _a.length; _i++) {
+            var node = _a[_i];
+            collectModuleReferences(node, /*inAmbientModule*/ false);
+            if ((file.flags & 524288 /* PossiblyContainsDynamicImport */) || isJavaScriptFile || deepDive) { // tslint:disable-line
+                collectDynamicImportOrRequireCalls(node);
+            }
+        }
+        file.imports = imports || ts.emptyArray;
+        file.moduleAugmentations = moduleAugmentations || ts.emptyArray;
+        file.ambientModuleNames = ambientModules || ts.emptyArray;
     }
-    file.imports = imports || ts.emptyArray;
-    file.moduleAugmentations = moduleAugmentations || ts.emptyArray;
-    file.ambientModuleNames = ambientModules || ts.emptyArray;
-    request.dependencies = file.imports.concat(file.moduleAugmentations, file.ambientModuleNames).map(getText).filter(nodeModules);
-    if (request.fileName.endsWith('.d.ts')) {
-        return this.bail(null, request);
-    }
+    request.dependencies = file.imports
+        .concat(file.moduleAugmentations, file.ambientModuleNames)
+        .map(getText)
+        // .filter(nodeModules)
+        .filter(knowExtensions);
     return this.next(null, request);
     function collectModuleReferences(node: any, inAmbientModule: any) {
         switch (node.kind) {
-
             case ts_.SyntaxKind.ImportDeclaration:
             case ts_.SyntaxKind.ImportEqualsDeclaration:
             case ts_.SyntaxKind.ExportDeclaration:
@@ -96,7 +96,6 @@ export function CollectExternalModuleReferences(this: IWaterfall, request: IRequ
         }
     }
     function collectDynamicImportOrRequireCalls(node: any) {
-        ticks++;
         if (ts.isRequireCall(node, /*checkArgumentIsStringLiteral*/ true)) {
             (imports || (imports = [])).push(node.arguments[0]);
         } else if (ts.isImportCall(node) && node.arguments.length === 1 && node.arguments[0].kind === 9 /* StringLiteral */) {
@@ -118,6 +117,26 @@ export function CollectExternalModuleReferences(this: IWaterfall, request: IRequ
         }
     }
 }
+const fastExtensions = {
+    '.ts': true,
+    '.html': true,
+    '.css': true,
+    '.less': true,
+    '.js': true,
+    '.json': true,
+    '.png': true,
+    '.woff': true,
+    '.ttf': true,
+    '.eot': true,
+    '.svg': true,
+    '.jpeg': true,
+    '.jpg': true,
+    '.gif': true
+};
+function knowExtensions(item: string) {
+    return !fastExtensions[extname(item)];
+}
+
 function pushTo(item: any) {
     this.push(item);
 }
