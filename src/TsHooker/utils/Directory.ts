@@ -77,13 +77,16 @@ function childrenName(child: any) {
 }
 
 
-export const Directory = (function () {
+export const Directory: IDirectory = (function () {
     const root = NodeItem.MakeRoot();
     let exts: string[];
     let matchers: RegExp[];
-    return {
-        set: function (path: string, content: any) {
-            getNode(path, true).val = content;
+    const service = {
+        set: function <T>(path: string, content: T) {
+            return getNode(path, true).val = content;
+        },
+        walker: function (path: string) {
+            return new Walker(path);
         },
         get: function (path: string) {
             const node = getNode(path, false);
@@ -114,7 +117,7 @@ export const Directory = (function () {
         },
         resolve: function (module: string, containingFile: string, compilerOptions: any) {
             if (module[0] !== '.' && module[0] !== '/') {
-                return;
+                return nodeModule(module);
             }
             const fileName = basename(module);
             const extension = extname(fileName);
@@ -167,12 +170,52 @@ export const Directory = (function () {
             matchers = matchers ? matchers.concat(exts) : exts.slice();
         }
     };
+    // KEEP IN SYNC!!
+    const fakeNodeModules = 'C:/fake/node_modules/';
+    Object.defineProperty(service, 'NODE_MODULES', {
+        get: function () {
+            // KEEP IN SYNC!!
+            // const fakeNodeModules = 'C:/fake/node_modules/';
+            return 'C:/fake/node_modules/';
+        }
+    });
+    class Walker implements IWalker {
+        private _node: NodeItem;
+        constructor(path: string) {
+            this._node = getNode(path, false);
+        }
+        isValid() {
+            return !!this._node;
+        }
+        getChildrenNames() {
+            return this._node.getChildren() || [];
+        }
+        getChild(name: string) {
+            this._node = this._node.getChild(name);
+            return this;
+        }
+        setChild(name: string, val: any) {
+            const child = this._node.getChild(name) || this._node.createChild(name);
+            child.val = val;
+            return this;
+        }
+        getParent() {
+            if (this._node) {
+                this._node = this._node.getParent();
+            }
+            return this;
+        }
+        getValue() {
+            return this._node.val;
+        }
+    }
+    return service as any;
     function nodeModule(module: string) {
         return {
             extension: '.js',
             isExternalLibraryImport: true,
             packageId: {} as any,
-            resolvedFileName: 'C:/fake/node_modules/' + module + '.js'
+            resolvedFileName: fakeNodeModules + module + '/index.js'
         };
     }
     function match(this: string, reg: RegExp) {

@@ -9,11 +9,19 @@ let id = 0;
 
 
 export function AsyncConnector(this: void, compilerOptions: ts.ParsedCommandLine, fs: IFsAccessor) {
+    let connected = false;
     let send = function send(content: IMessage) {
-        child.stdin.write(Parser.toBuffer(content));
+        if (connected) {
+            child.stdin.write(Parser.toBuffer(content));
+        } else {
+            setTimeout(send, 200, content);
+        }
     };
     let answer = function answerReadFile(request: IMessage) {
         return function (err: Error, content: any) {
+            if (err) {
+                err = err;
+            }
             send({
                 method: request.method,
                 id: request.id,
@@ -21,15 +29,27 @@ export function AsyncConnector(this: void, compilerOptions: ts.ParsedCommandLine
             });
         };
     };
+    process.on('uncaughtException', function (err) {
+        console.log(err);
+    });
     const cbs = CallbackQueue();
     const child = childProcess.fork(join(__dirname, './../Server/Connector.js'), [], { execArgv: getExecArgv(), silent: true });
-    child.stdout.on('readable', function (message: Buffer) {
-        Parser.fromBuffer(child.stdout.read() as any, processChunk);
+    child.stdout.on('readable', function () {
+        const text = child.stdout.read();
+        if (connected) {
+            Parser.fromBuffer(text as any, processChunk);
+            return;
+        }
+        connected = true;
+        send({
+            method: MESSAGE_TYPE.INIT,
+            data: JSON.stringify(compilerOptions)
+        });
     });
-    send({
-        method: MESSAGE_TYPE.INIT,
-        data: JSON.stringify(compilerOptions)
-    });
+    process.on('exit', function () {
+        child.disconnect();
+    })
+
     const service = {
         emit: function (fileName: string, cb: Function) {
             send({
@@ -75,6 +95,9 @@ export function AsyncConnector(this: void, compilerOptions: ts.ParsedCommandLine
                 break;
             case MESSAGE_TYPE.READ_FILE:
                 fs.readFile(request.fileName, answer(request));
+                if (request.data === 'watch') {
+                    console.log('watching');
+                }
                 break;
             case MESSAGE_TYPE.ERROR:
                 const err = JSON.parse(request.data);
@@ -101,9 +124,9 @@ function getExecArgv() {
     let execArgv = [];
     for (let _i = 0, _a = process.execArgv; _i < _a.length; _i++) {
         let arg = _a[_i];
-        let match = /^--(inspect)(=(\d+))?$/.exec(arg);
+        let match = /^--(inspect(?:-brk)?)(=(\d+))?$/.exec(arg);
         if (match) {
-            let currentPort = match[3] !== undefined ? +match[3] : match[1] === 'debug' ? 5858 : 9229;
+            let currentPort = match[3] !== undefined ? +match[3] : 9229;
             execArgv.push('--' + match[1] + '=' + (currentPort + 1));
         } else {
             execArgv.push(arg);

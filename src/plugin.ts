@@ -1,11 +1,11 @@
 import * as tsImpl from 'typescript';
 import * as colors from 'colors';
-import { resolve, dirname, normalize } from 'path';
+import { resolve, dirname, normalize, basename } from 'path';
 import { readFile } from 'fs';
 import { init } from './TsHooker/Client';
 import prettyHrtime = require('./TsHooker/utils/prettyHrtime');
-import * as Watchpack from 'C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI/node_modules/watchpack/lib/watchpack';
-
+import * as Watchpack from 'C:/Projects/Proteus/Proteus-GUI/node_modules/watchpack/lib/watchpack';
+const self = this;
 export = function makePlugin(options: any) {
 
     options = options || {};
@@ -64,6 +64,7 @@ export = function makePlugin(options: any) {
 
 
     function startTsServer(_: any, cb: any) {
+        const nodeModulePath = nodeModulesFolder(module.parent);
         const mainModule = findMainModule(require, 0);
         const resolvePath = resolver(this.resolvers.normal);
         const myFs = this.resolvers.normal.fileSystem;
@@ -101,6 +102,7 @@ export = function makePlugin(options: any) {
                     $$matchers: matchers,
                     webpackThingy: compilerConfig.raw.webpackThingy,
                     typescriptPath: mainModule,
+                    nodeModules: nodeModulePath,
                     entries: entries
                 };
                 compilerConfig.fileNames = compilerConfig.fileNames.map(normalize);
@@ -112,6 +114,22 @@ export = function makePlugin(options: any) {
                 cb();
             }
         });
+    }
+
+    function nodeModulesFolder(module: NodeModule) {
+        if (!module) {
+            throw 'Cannot find node_modules folder';
+        }
+        let nodeModulesIndex = module.filename.indexOf('node_modules');
+        if (nodeModulesIndex !== -1 && module.filename.indexOf('webpack', nodeModulesIndex) !== -1) {
+            let path = dirname(module.filename);
+            while (basename(path) !== 'node_modules') {
+                path = dirname(path);
+            }
+            return path;
+        } else {
+            return nodeModulesFolder(module.parent);
+        }
     }
 
     function findMainModule(req: any, index: number) {

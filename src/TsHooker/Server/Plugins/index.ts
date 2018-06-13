@@ -4,4 +4,4 @@ export { UpdateHostFile } from './UpdateHostFile';
 export { CollectExternalModuleReferences } from './CollectExternalModuleReferences';
 export { getFileConfig } from './GetFile';
 export { ResolveDependencies } from './ResolveDependencies';
-export { LoadNodeModules } from './LoadNodeModules';
+export { LoadNodeModulesCreator } from './LoadNodeModules';

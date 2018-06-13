@@ -1,4 +1,3 @@
-const shifting = +!module.parent;
 const growSize = 10;
 
 export function CallbackQueue() {
@@ -12,10 +11,13 @@ export function CallbackQueue() {
     function take(id: string): Function
     function take(id: any): Function {
         id = parseInt(id, 10);
-        const fn = list[id];
-        list[id] = null;
-        append(id);
-        return fn;
+        if (id > -1 && id < list.length) {
+            const fn = list[id];
+            list[id] = null;
+            append(id);
+            return fn;
+        }
+        throw new Error('Out of bound');
     }
 
     function put(cb: Function, recursive?: boolean): string {
@@ -28,9 +30,6 @@ export function CallbackQueue() {
             list[toReturn] = cb;
             return toReturn.toString();
         } else {
-            if (recursive) {
-                recursive = recursive;
-            }
             return grow(), put(cb, true);
         }
     }

@@ -29,6 +29,7 @@ import { CallbackQueue } from './../utils/CallbacksQueue';
     process.stdin.on('readable', function () {
         Parser.fromBuffer(process.stdin.read() as any, processChunk);
     });
+    process.stdout.write(Buffer.from('ready', 'utf-8'));
     function processChunk(request: IMessage) {
         switch (request.method) {
             case MESSAGE_TYPE.EMIT_FILE:

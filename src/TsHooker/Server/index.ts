@@ -1,4 +1,4 @@
-import { makeWaterfall } from '../utils/waterfall';
+import { makeWaterfall, configWaterfall, pendingRequests, onDone } from '../utils/waterfall';
 import { singleton } from '../utils/singleTon';
 import {
     TranspileFile,
@@ -7,7 +7,7 @@ import {
     CollectExternalModuleReferences,
     getFileConfig,
     ResolveDependencies,
-    LoadNodeModules
+    LoadNodeModulesCreator
 } from './Plugins';
 import { makeHost } from './Host';
 import { createDocumentRegistry } from './DocumentRegistry';
@@ -17,16 +17,16 @@ import { fileDeps } from './FileDependencies';
 import { readdir, stat } from 'fs';
 import * as ts from './../../typescript';
 export const init = singleton(function init(compilerOptions: ts.ParsedCommandLine, readFile: Function, resolveFile: Function): (((fileName: string, onEmit: (err: Error, response: IResponseContext) => void) => void) & { doCheck: Function; }) {
-    let pending = 0;
     const myFileDeps = fileDeps();
     const hostInstance = makeHost(compilerOptions, true);
     const docReg = createDocumentRegistry(true);
-    const applyWaterfall = makeWaterfall(hostInstance, docReg as any, readFile, resolveFile, [
-        getFileConfig(hostInstance),
+    configWaterfall(compilerOptions, hostInstance, docReg as any, readFile, resolveFile);
+    const applyWaterfall = makeWaterfall<IRequestContext>([
+        getFileConfig,
         UpdateHostFile,
         GenerateSourceFile,
         CollectExternalModuleReferences,
-        LoadNodeModules,
+        LoadNodeModulesCreator,
         ResolveDependencies,
         TranspileFile
     ]);
@@ -40,8 +40,8 @@ export const init = singleton(function init(compilerOptions: ts.ParsedCommandLin
     });
 
     function doCheck(cb: Function) {
-        if (pending) {
-            doDiag.push(cb);
+        if (pendingRequests()) {
+            onDone(doCheck.bind(null, cb));
             return;
         }
         const missingFiles = myFileDeps.getMissingFiles();
@@ -55,11 +55,7 @@ export const init = singleton(function init(compilerOptions: ts.ParsedCommandLin
                     response.dependencies.forEach(processFile);
                 }
                 if (!amount) {
-                    if (pending) {
-                        doDiag.push(cb);
-                        return;
-                    }
-                    cb(typeChecker());
+                    cb(tryTypeChecked());
                 }
             }
             function processFile(fileName: string) {
@@ -70,7 +66,14 @@ export const init = singleton(function init(compilerOptions: ts.ParsedCommandLin
                 }
             }
         } else {
-            cb(typeChecker());
+            cb(tryTypeChecked());
+        }
+    }
+    function tryTypeChecked() {
+        try {
+            return typeChecker();
+        } catch (err) {
+            throw err;
         }
     }
 
@@ -92,7 +95,6 @@ export const init = singleton(function init(compilerOptions: ts.ParsedCommandLin
     }
 
     function compile(fileName: string, onEmit: (err: Error, response: IResponseContext) => void) {
-        pending++;
         applyWaterfall({
             fileName: fileName,
             data: '',
@@ -105,21 +107,19 @@ export const init = singleton(function init(compilerOptions: ts.ParsedCommandLin
                 onEmit(err, null);
             } else {
                 myFileDeps.processFile(result.fileName);
-                onEmit(err, err ? null : {
+                onEmit(null, {
                     output: result.output,
                     sourceMap: result.sourceMap,
                     dependencies: result.dependencies.map(myFileDeps.addFileDep)
                 });
             }
-            pending--;
-            if (!pending && doDiag.length) {
-                doDiag.forEach(doCheck);
-                doDiag.length = 0;
-            }
         });
     }
 
     function doAllFiles(err: Error, response: IMessage) {
+        if (err) {
+            return;
+        }
         if (response.dependencies && response.dependencies.length) {
             response.dependencies.forEach(processFile, dirname(response.fileName));
         }

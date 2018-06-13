@@ -1,7 +1,7 @@
 import { AsyncConnector } from './Connector';
 import { singleton } from '../utils/singleTon';
 import * as ts from './../../typescript';
-import * as Watchpack from 'C:/Users/admin/Documents/Projects/Proteus/Proteus-GUI/node_modules/watchpack/lib/watchpack';
+import * as Watchpack from 'C:/Projects/Proteus/Proteus-GUI/node_modules/watchpack/lib/watchpack';
 import { resolve, dirname } from 'path';
 import * as fs from 'fs';
 import { watch } from './Watcher';

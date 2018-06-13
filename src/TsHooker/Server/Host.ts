@@ -2,6 +2,7 @@ import * as ts from './../../typescript';
 import { normalize } from 'path';
 import { singleton } from './../utils/singleTon';
 import { Directory } from './../utils/Directory';
+import Folder from './../utils/Folder';
 interface IFileInternal extends IFile {
     snapshot: ts.IScriptSnapshot;
 }
@@ -52,15 +53,17 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
         filesRegex: RegExp;
         getCustomTransformers: any;
         getFile: (fileName: string) => IFileInternal;
+        async: { readFile: Function };
         constructor(filesRegex: RegExp) {
             this.filesRegex = filesRegex;
             this.getFile = Directory.get;
         }
+        getNodeModules() { return parsed.raw.nodeModules; }
 
         getProjectVersion() { return projectVersion.toString(); }
 
         getScriptFileNames() {
-            const names = files.map(file => file.fileName)
+            const names = files.map(file => file ? file.fileName : '')
                 .filter(fileName => this.filesRegex.test(fileName));
             return names;
         }
@@ -70,6 +73,7 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
             if (file) {
                 return file.version.toString();
             }
+            fileName = fileName;
         }
 
         getScriptSnapshot(fileName: string) {
@@ -77,6 +81,7 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
             if (file) {
                 return file.snapshot;
             }
+            fileName = fileName;
         }
 
         getCurrentDirectory() {
@@ -100,30 +105,14 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
         }
 
         resolveTypeReferenceDirectives(typeDirectiveNames: string[], containingFile: string) {
-            const resolved = typeDirectiveNames.map(directive =>
+            return typeDirectiveNames.map(directive =>
                 ts.resolveTypeReferenceDirective(directive, containingFile, compilerOptions, this as any)
                     .resolvedTypeReferenceDirective);
-
-            resolved.forEach(res => {
-                if (res && res.resolvedFileName) {
-                    fileDeps.add(containingFile, res.resolvedFileName);
-                }
-            });
-
-            return resolved;
         }
 
         resolveModuleNames(moduleNames: string[], containingFile: string) {
-            const resolved = moduleNames.map(module =>
+            return moduleNames.map(module =>
                 Directory.resolve(module, containingFile, compilerOptions) || ts.resolveModuleName(module, containingFile, compilerOptions, this as any).resolvedModule);
-
-            resolved.forEach(res => {
-                if (res && res.resolvedFileName) {
-                    fileDeps.add(containingFile, res.resolvedFileName = normalize(res.resolvedFileName));
-                }
-            });
-
-            return resolved;
         }
 
         log(message: string) {
@@ -139,7 +128,7 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
         }
 
         readDirectory(path: string) {
-            return [];
+            return Directory.getDir(path);
         }
 
         getDefaultLibFileName(options: ts.CompilerOptions) {
@@ -150,17 +139,16 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
             return caseInsensitive;
         }
 
-        getDirectories(path: string) {
-            return Directory.getDir(path);
+        readFolder(path: string) {
+            return Directory.walker(path);
         }
 
         directoryExists(path: string) {
             return Directory.has(path);
         }
-        writeFile(fileName: string, text: string) {
-            if (!text) {
-                text = '';
-            }
+
+        writeFile(fileName: string, fileContent?: string) {
+            const text = fileContent || '';
             const file = files.get(fileName);
             if (file) {
                 let updated = false;
@@ -169,7 +157,6 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
                         file.fileName = fileName; // use most recent name for case-sensitive file systems
                         updated = true;
                     } else {
-                        files.delete(file.fileName);
                         projectVersion++;
                         files.set(fileName, {
                             fileName,
@@ -198,7 +185,13 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
                 });
             }
         }
+        directory() {
+            return Directory;
+        }
     }
-    return new Host(/./);
+    return new Host(/\.ts$/);
 }) as (compilerOptions: ts.ParsedCommandLine, useCaseSensitiveFileNames: boolean) => ts.LanguageServiceHost & IShortHost;
 
+function toPath(item: IChild) {
+    return item.fullName();
+}

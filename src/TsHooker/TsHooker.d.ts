@@ -1,3 +1,4 @@
+/// <reference path="../../node_modules/@types/node/index.d.ts"/>
 interface IMessageType {
     INIT: string;
     READ_FILE: string;
@@ -48,7 +49,64 @@ interface IRequestContext {
     output?: string;
     dependencies?: any;
 }
-interface IFile {
+interface IShortDocReg {
+    toPath(fileName: string): any;
+    updateDocumentWithKey(fileName: string, path: any, compilationSettings: CompilerOptions, key: any, scriptSnapshot: IScriptSnapshot, version: string, scriptKind?: any): SourceFile
+    updateDocument(fileName: string, compilationSettings: CompilerOptions, scriptSnapshot: IScriptSnapshot, version: string, scriptKind?: any): SourceFile;
+    getKeyForCompilationSettings(...args: any[])
+}
+declare class IWalker {
+    constructor(path: string);
+    isValid(): boolean;
+    getChildrenNames(): string[]
+    getChild(name: string): IWalker;
+    setChild(name: string, val: any): IWalker
+    getParent(): IWalker;
+    getValue<T>(): T;
+    getValue(): any;
+}
+interface IDirectory {
+    NODE_MODULES: string;
+    walker: (path: string) => IWalker;
+    set<T>(path: string, content: T): T;
+    get(path: string): any;
+    get<T>(path: string): T;
+    has: (path: string) => boolean;
+    getDir: (path: string) => any[];
+    map: (cb: Function) => any[];
+    resolve: (module: string, containingFile: string, compilerOptions: any) => {
+        extension: string;
+        isExternalLibraryImport: boolean;
+        packageId: any;
+        resolvedFileName: string;
+    };
+    delete: (path: string) => void;
+    resolveFrom: (extensions: string[]) => void;
+    knowExtensions: (exts: RegExp[]) => void;
+}
+interface IShortHost {
+    directory(): IDirectory;
+    directoryExists(path: string): boolean;
+    getNodeModules(): string;
+    readModule(name: string): string[];
+    writeModule(name: string, files: any): void;
+    getFile(fileName: string): IFile;
+    readFile(path: string): string;
+    getCompilationSettings(): CompilerOptions;
+    getScriptSnapshot(fileName: IScriptSnapshot): IScriptSnapshot;
+    getScriptVersion(fileName: IScriptSnapshot): string;
+    writeFile(fileName: string, fileContent: string): void;
+    readDirectory(dirName: string): string[];
+}
+declare class IFolder extends IChild {
+    static CreateFolder(folderName: string): IFolder;
+    folderName: string
+    addFolder(name: string, stats?: any): IFolder;
+    addFile(name: string, stats?: any): IFolder;
+    getContent(): any[];
+}
+
+interface IFile extends IChild {
     working: boolean;
     listeners: Function[];
     fileName: string;
@@ -59,51 +117,42 @@ interface IFile {
     sourceMap: string
     dependencies: string[];
 }
-interface IShortDocReg {
-    toPath(fileName: string): any;
-    updateDocumentWithKey(fileName: string, path: any, compilationSettings: CompilerOptions, key: any, scriptSnapshot: IScriptSnapshot, version: string, scriptKind?: any): SourceFile
-    updateDocument(fileName: string, compilationSettings: CompilerOptions, scriptSnapshot: IScriptSnapshot, version: string, scriptKind?: any): SourceFile;
-    getKeyForCompilationSettings(...args: any[])
+declare class IChild {
+    isFile(): boolean;
+    isFolder(): boolean;
+    toFile(): IFile;
+    toFolder(): IFolder;
+    fullName(): string;
 }
-interface IShortHost {
-    readModule(name: string): string[];
-    writeModule(name: string, files: string[]): void;
-    getFile(fileName: string): IFile;
-    readFile(path: string): string;
-    getCompilationSettings(): CompilerOptions;
-    getScriptSnapshot(fileName: IScriptSnapshot): IScriptSnapshot;
-    getScriptVersion(fileName: IScriptSnapshot): string;
-    writeFile(fileName: string, fileContent: string): void;
+interface IWaterfallPlugin<T> {
+    (context: IWaterfall<T>, request: T): void;
 }
-interface IWaterfallPlugin {
-    (context: IWaterfall, request: IRequestContext): void;
-}
-interface IWaterfall {
+interface IWaterfall<T> {
+    node_modules: string;
+    typeFolders: string[];
     options: CompilerOptions;
     host: IShortHost;
     docReg: IShortDocReg;
-    next: ICommonCallback;
-    bail: ICommonCallback;
-    applyWaterfall(startingRequest: IRequestContext, next: ICommonCallback): void;
+    next: ICallback<T>;
+    bail: ICallback<T>;
     resolveFile(fromDir: string, relPath: string, cb: (err: Error, fullPath: string) => void): void;
     readFile(fileName: string, cb: (content: string) => void): void;
-    asyncBail: () => IBoundCommonCallback;
-    asyncNext: () => IBoundCommonCallback;
+    asyncBail: () => IBoundCommonCallback<T>;
+    asyncNext: () => IBoundCommonCallback<T>;
 }
-interface IBoundCommonCallback extends ICommonCallback {
-    resolver(): IResolverCallback;
+interface IBoundCommonCallback<T> extends ICallback<T> {
+    resolver(): IResolverCallback<T>;
 }
 
 
-interface IResolverCallback {
-    (result: IRequestContext): void;
+interface IResolverCallback<T> {
+    (result?: T): void;
 }
 
 interface ICallback<T> {
-    (error: Error, result: T): void;
+    (error: Error, result?: T): void;
 }
 
-interface ICommonCallback extends ICallback<IRequestContext> { }
 
 interface Dictionary<T> {
     [key: string]: T;
