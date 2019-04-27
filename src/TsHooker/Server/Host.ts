@@ -111,8 +111,17 @@ export const makeHost = singleton(function makeHost(parsed: ts.ParsedCommandLine
         }
 
         resolveModuleNames(moduleNames: string[], containingFile: string) {
-            return moduleNames.map(module =>
-                Directory.resolve(module, containingFile, compilerOptions) || ts.resolveModuleName(module, containingFile, compilerOptions, this as any).resolvedModule);
+
+            return moduleNames.map(module => Directory.resolve(module, containingFile, compilerOptions))
+                .map(item => {
+                    if (item && item.resolvedFileName && item.resolvedFileName.startsWith(Directory.NODE_MODULES)) {
+                        const request = Directory.get<IResolveContext>(item.resolvedFileName);
+                        if (request) {
+                            item.resolvedFileName = request.mainFile || item.resolvedFileName;
+                        }
+                    }
+                    return item;
+                });
         }
 
         log(message: string) {

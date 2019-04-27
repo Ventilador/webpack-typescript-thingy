@@ -15,10 +15,6 @@ export function LoadNodeModulesCreator(this: IWaterfall<void>, applyParent: (sta
         LocateMainFile,
         _ => applyNext
     ]);
-    let amount = 0;
-    Function('return this')().internal = function () {
-        return amount;
-    }
     return function LoadNodeModules(this: IWaterfall<IRequestContext>, request: IRequestContext) {
         const nodeModules: string[] = request.dependencies.filter(isNodeModule, true);
         request.dependencies = request.dependencies.filter(isNodeModule, false);
@@ -29,18 +25,13 @@ export function LoadNodeModulesCreator(this: IWaterfall<void>, applyParent: (sta
     };
 
     function applyNext(this: IWaterfall<IResolveContext>, request: IResolveContext) {
-        if (request.dependencies.length) {
-            const async = this.asyncNext();
-            parallel(request.dependencies, callParentWith)
-                .then(_ => {
-                    async(null, request);
-                }, async);
-        } else {
-            this.next(null, request);
+        if (request.mainFile) {
+            const async = this.asyncNext()
+            callParentWith(request.mainFile);
         }
+        this.next(null, request);
     }
-    function callParentWith(item: string, next: ICallback<any>) {
-        amount++;
+    function callParentWith(item: string) {
         applyParent({
             fileName: item,
             data: '',
@@ -48,13 +39,28 @@ export function LoadNodeModulesCreator(this: IWaterfall<void>, applyParent: (sta
             sourceFile: null,
             sourceMap: '',
             dependencies: null
-        }, function (err) {
-            amount--;
-            next(err);
+        }, function (err: Error, result: IRequestContext) {
+            if (err) {
+                return;
+            }
+            if (result.dependencies.length) {
+                result.dependencies.map(toDts).filter(Boolean).forEach(callParentWith);
+            }
         });
     }
+    function toDts(item: string) {
+        if (item.endsWith('.d.ts')) {
+            return item;
+        }
+        if (item.endsWith('.js')) {
+            return item.replace('.js', '.d.ts');
+        }
+        if (item.endsWith('.ts')) {
+            return item.replace('.ts', '.d.ts');
+        }
+        return false;
+    }
     function resolveNodeModule(module: string) {
-        amount++;
         resolverWaterfall({
             module: module,
             mainFile: '',
@@ -64,9 +70,6 @@ export function LoadNodeModulesCreator(this: IWaterfall<void>, applyParent: (sta
             $$reject: null,
             $$resolve: null,
             dependencies: []
-        }, function (err, request) {
-            amount--;
-            request.$$resolve();
         });
     }
 }

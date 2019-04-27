@@ -1,7 +1,12 @@
 import { readdir, stat } from 'fs';
 import { resolve } from 'path';
-export function LocateMainFile() {
+export function LocateMainFile(this: IWaterfall<IResolveContext>) {
+    const host = this.host;
     return function LocateMainFile(this: IWaterfall<IResolveContext>, request: IResolveContext) {
+        if (!request.modulePath) {
+            this.next(null, request);
+            return;
+        }
         const async = this.asyncNext();
         readdir(request.modulePath, function (err: Error, list: string[]) {
             for (let ii = 0; ii < list.length; ii++) {
@@ -11,7 +16,9 @@ export function LocateMainFile() {
                     async(null, request);
                     return;
                 } else if (cur === 'package.json') {
-                    const obj = require(resolve(request.modulePath, cur));
+                    const path = resolve(request.modulePath, cur)
+                    const obj = require(path);
+                    host.writeFile(path, JSON.stringify(obj))
                     if (obj) {
                         if (obj.typings) {
                             request.mainFile = resolve(request.modulePath, obj.typings);
@@ -24,17 +31,16 @@ export function LocateMainFile() {
                                     request.mainFile = path;
                                     async(null, request);
                                 } else {
-                                    bailer(async, request.module);
+                                    request.mainFile = null;
+                                    async(null, request);
                                 }
                             });
                             return;
                         }
                     }
-                    bailer(async, request.module);
-                    return;
                 }
             }
-            bailer(async, request.module);
+            async(null, request);
         });
     };
 

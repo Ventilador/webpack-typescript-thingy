@@ -140,11 +140,24 @@ export const Directory: IDirectory = (function () {
                 if (cur === '..') {
                     nodeItem = nodeItem.getParent();
                 } else if (!cur) {
-                    nodeItem = nodeItem.getChild('index.ts');
+                    let tempNode = nodeItem.getChild('index.ts');
+                    if (!tempNode) {
+                        tempNode = nodeItem.getChild('index.d.ts');
+                    }
+                    if (!tempNode) {
+                        throw new Error('Could not resolve: "' + module + '" from "' + containingFile + '".');
+                    }
+                    nodeItem = tempNode;
                 } else if (cur !== '.') {
                     let tempNode = nodeItem.getChild(cur);
                     if (!tempNode) {
                         tempNode = nodeItem.getChild(cur + '.ts');
+                    }
+                    if (!tempNode) {
+                        tempNode = nodeItem.getChild(cur + '.d.ts');
+                    }
+                    if (!tempNode) {
+                        throw new Error('Could not resolve: "' + module + '" from "' + containingFile + '".');
                     }
                     nodeItem = tempNode;
                 }

@@ -1,7 +1,7 @@
 const { execSync } = require('child_process');
 const { resolve, dirname } = require('path');
 try {
-    const result = execSync('npm run build', { cwd: dirname(__dirname) });
+    const result = execSync('yarn run build', { cwd: dirname(__dirname) });
     console.log(result.toString());
 } catch (err) {
     console.error(err);

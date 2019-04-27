@@ -2,10 +2,11 @@ import { onNextTick } from './waterfallProcessor';
 let pending = 0;
 const pending_ = {};
 export function makeWaterfall<T>(methods: Function[]) {
+    methods = methods.map(prepareMethod, apply);
     return apply;
     function apply(startingRequest: T, next?: ICallback<T>) {
         pending++;
-        const waterfall = new Waterfall(methods.map(prepareMethod, apply), startingRequest, function () {
+        const waterfall = new Waterfall(methods, startingRequest, function () {
             pending--;
             if (!pending) {
                 setImmediate(notify);

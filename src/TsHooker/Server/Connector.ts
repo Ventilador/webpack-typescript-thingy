@@ -22,10 +22,6 @@ import { CallbackQueue } from './../utils/CallbacksQueue';
         });
     });
 
-    process.on('disconnect', function () {
-        process.exit();
-    });
-
     process.stdin.on('readable', function () {
         Parser.fromBuffer(process.stdin.read() as any, processChunk);
     });

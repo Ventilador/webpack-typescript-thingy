@@ -1,4 +1,5 @@
 import * as ts from 'typescript';
+import * as asd from 'typescript/async';
 import { resolve } from 'path';
 (ts as any).initFrom = function (path: string) {
     let tsImp = ts;
@@ -10,6 +11,7 @@ import { resolve } from 'path';
         return prev;
     }, ts);
 };
+
 export = ts;
 
 

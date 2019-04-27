@@ -4,29 +4,12 @@ export function TryGetFromMemory() {
     return function TryGetFromMemory(this: IWaterfall<IResolveContext>, request: IResolveContext) {
         const dir = this.host.directory();
         const moduleResolution = dir.resolve(request.module, '', this.host.getCompilationSettings());
-        const modulePath = dirname(moduleResolution.resolvedFileName);
-        const node = dir.get<IResolveContext>(modulePath);
+        const node = dir.get<IResolveContext>(moduleResolution.resolvedFileName);
         if (node) {
-            if (node.resolving) {
-                const bail = this.asyncBail();
-                return node.resolving.then(bail.resolver(), bail as any);
-            } else if (node.resolved) {
-                return this.bail(null, node);
-            }
-            return this.bail(new Error('Something went wrong'), null);
+            return this.bail(null);
         }
-        dir.set(modulePath, request);
-        request.modulePath = modulePath;
-        request.resolving = new Promise((res: Function, rej: Function) => {
-            request.$$resolve = function (err) {
-                keys.forEach(cleanKey, request);
-                if (err) {
-                    rej(err);
-                } else {
-                    res(request);
-                }
-            };
-        });
+        dir.set(moduleResolution.resolvedFileName, request);
+        request.modulePath = dirname(moduleResolution.resolvedFileName);
         this.next(null, request);
     };
 

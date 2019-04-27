@@ -20,12 +20,8 @@ export function FindDirectory(this: IWaterfall<IResolveContext>) {
             });
         }, Promise.resolve(''))
             .then(function (folder) {
-                if (folder) {
-                    request.modulePath = folder;
-                    async(null, request);
-                } else {
-                    async(new Error('Not found: "' + request.module + '"'), null);
-                }
+                request.modulePath = folder;
+                async(null, request);
             })
             .catch(async);
     };

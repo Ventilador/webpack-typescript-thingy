@@ -46,9 +46,7 @@ export function AsyncConnector(this: void, compilerOptions: ts.ParsedCommandLine
             data: JSON.stringify(compilerOptions)
         });
     });
-    process.on('exit', function () {
-        child.disconnect();
-    })
+    
 
     const service = {
         emit: function (fileName: string, cb: Function) {
